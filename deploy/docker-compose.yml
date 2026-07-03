@@ -1,0 +1,196 @@
+# =============================================================================
+# MediCast — Autonomous Surgical Video Intelligence
+# Docker Compose: Full AMD Developer Cloud Stack
+#
+# Services:
+#   postgres          — Database (Postgres 16)
+#   pgbouncer         — Connection pooler for Postgres
+#   minio             — S3-compatible object storage (video uploads)
+#   redis             — Pub/sub message broker (WebSocket fan-out)
+#   inference-server  — Python FastAPI with ROCm GPU inference (vLLM / Ollama)
+#   frontend          — Nginx serving Vite build + reverse proxy
+#
+# Usage:
+#   cp .env.example .env       # Fill in secrets
+#   docker compose -f src/deploy/docker-compose.yml up -d
+#   docker compose -f src/deploy/docker-compose.yml logs -f
+#   docker compose -f src/deploy/docker-compose.yml down
+#
+# GPU passthrough uses the ROCm device plugin (not NVIDIA).
+# https://rocm.docs.amd.com/en/latest/deploy/docker.html
+# =============================================================================
+
+services:
+
+  # ── PostgreSQL 16 ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16
+    container_name: medicast-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: medicast
+      POSTGRES_USER: medicast
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./schema/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medicast -d medicast"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits: { memory: 4G }
+        reservations: { memory: 2G }
+
+  # ── PgBouncer (Connection Pooler) ─────────────────────────────────────────
+  pgbouncer:
+    image: bitnami/pgbouncer:latest
+    container_name: medicast-pgbouncer
+    restart: unless-stopped
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_DATABASE: medicast
+      POSTGRESQL_USER: medicast
+      POSTGRESQL_PASSWORD: ${DB_PASSWORD}
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: "100"
+      PGBOUNCER_DEFAULT_POOL_SIZE: "25"
+    ports:
+      - "6432:6432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { memory: 512M }
+
+  # ── MinIO (S3-Compatible Object Storage) ──────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: medicast-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
+    volumes:
+      - miniodata:/data
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web admin console
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits: { memory: 1G }
+
+  # ── Redis 7 (Pub/Sub Message Broker) ──────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: medicast-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits: { memory: 1G }
+
+  # ── Python Inference Server (ROCm GPU) ────────────────────────────────────
+  inference-server:
+    build:
+      context: ../inference-server
+      dockerfile: Dockerfile.rocm
+    container_name: medicast-inference
+    restart: unless-stopped
+    environment:
+      # Database
+      DATABASE_URL: postgresql://medicast:${DB_PASSWORD}@pgbouncer:6432/medicast
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      # MinIO
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      # Inference provider: "vllm" | "ollama" | unset (mock)
+      INFERENCE_PROVIDER: ${INFERENCE_PROVIDER:-}
+      INFERENCE_ENDPOINT: ${INFERENCE_ENDPOINT:-}
+      INFERENCE_API_KEY: ${INFERENCE_API_KEY:-}
+      # Model selection
+      MODEL_VISION: ${MODEL_VISION:-Qwen/Qwen2-VL-7B-Instruct}
+      MODEL_TEXT: ${MODEL_TEXT:-NousResearch/Meta-Llama-3.3-70B-Instruct}
+      # Server
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      RELOAD: "false"
+    ports:
+      - "8000:8000"
+    volumes:
+      - modelcache:/root/.cache/huggingface
+    # ROCm GPU passthrough — requires ROCm device plugin
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: rocm
+              count: 1
+              capabilities: [gpu]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    stop_grace_period: 30s
+
+  # ── Frontend (Nginx Static Server + Reverse Proxy) ────────────────────────
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: medicast-frontend
+    restart: unless-stopped
+    environment:
+      VITE_INFERENCE_URL: /api
+      VITE_WS_URL: /api/ws
+      VITE_MINIO_URL: /minio
+      VITE_API_KEY: ${API_KEY:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - inference-server
+    deploy:
+      resources:
+        limits: { memory: 256M }
+
+# ── Persistent Volumes ──────────────────────────────────────────────────────
+volumes:
+  pgdata:
+    name: medicast_pgdata
+  miniodata:
+    name: medicast_miniodata
+  redisdata:
+    name: medicast_redisdata
+  modelcache:
+    name: medicast_modelcache

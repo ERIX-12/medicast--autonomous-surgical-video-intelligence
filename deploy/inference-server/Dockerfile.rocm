@@ -1,0 +1,89 @@
+# =============================================================================
+# MediCast Inference Server — AMD ROCm Dockerfile
+#
+# Builds a container with:
+#   - ROCm base image with AMD GPU drivers
+#   - Python dependencies (FastAPI, vLLM with ROCm support)
+#   - MediCast inference server source code
+#   - Entrypoint: uvicorn serving FastAPI app
+#
+# Two modes:
+#   1. vLLM + ROCm (production) — high-throughput GPU inference
+#   2. Ollama + ROCm (alternative) — simpler model management
+# =============================================================================
+
+# ── Base: ROCm Ubuntu 22.04 ─────────────────────────────────────────────────
+FROM rocm/dev-ubuntu-22.04:latest
+
+LABEL maintainer="MediCast Team"
+LABEL description="MediCast Surgical Video Inference Server (ROCm)"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
+SHELL ["/bin/bash", "-c"]
+
+# ── System Dependencies ─────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # ROCm runtime & libraries
+    rocm-libs \
+    rocm-dev \
+    rocm-smi-lib \
+    hip-runtime-amd \
+    # Python
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
+    python3.11-venv \
+    # Build tools
+    build-essential \
+    git \
+    wget \
+    curl \
+    ca-certificates \
+    # Video processing (yt-dlp + ffmpeg with ROCm)
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a symlink so python3 → python3.11
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+
+# ── ROCm Verification ───────────────────────────────────────────────────────
+RUN rocm-smi --showproductname || echo "Warning: no AMD GPU detected at build time"
+
+# ── Python Dependencies ─────────────────────────────────────────────────────
+WORKDIR /app
+
+# Copy requirements first for layer caching
+COPY requirements.txt .
+
+RUN python3 -m venv /app/venv && \
+    source /app/venv/bin/activate && \
+    pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements.txt
+
+# ── vLLM with ROCm Support ──────────────────────────────────────────────────
+RUN source /app/venv/bin/activate && \
+    # vLLM with ROCm support (see https://docs.vllm.ai/en/latest/getting_started/installation/gpu/rocm.html)
+    pip install vllm[rocm] 2>/dev/null || \
+    echo "vLLM ROCm installation skipped — install manually if using vLLM"
+
+# ── Application Code ────────────────────────────────────────────────────────
+COPY app/ ./app/
+
+# ── Runtime Configuration ───────────────────────────────────────────────────
+ENV PATH="/app/venv/bin:$PATH"
+ENV PYTHONPATH="/app:$PYTHONPATH"
+ENV HOST="0.0.0.0"
+ENV PORT="8000"
+
+# Expose inference API port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost:8000/api/health || exit 1
+
+# ── Entrypoint ──────────────────────────────────────────────────────────────
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
