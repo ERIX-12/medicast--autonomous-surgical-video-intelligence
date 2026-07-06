@@ -1,0 +1,235 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* Typography */
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-heading: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Dark OR-Friendly Palette */
+  --color-background: #050810;
+  --color-surface: #0a0f1e;
+  --color-surface-elevated: #0f1528;
+  --color-surface-hover: #141c33;
+  --color-foreground: #e8ecf4;
+  --color-foreground-muted: #8892a6;
+  --color-border: #1e2840;
+  --color-border-active: #2a3a5c;
+
+  /* Accent — Cyan (safe/normal) */
+  --color-accent: #06b6d4;
+  --color-accent-dim: #0e7490;
+  --color-accent-glow: rgba(6, 182, 212, 0.15);
+  --color-accent-glow-strong: rgba(6, 182, 212, 0.25);
+
+  /* Amber — Warning/Caution */
+  --color-warning: #f59e0b;
+  --color-warning-dim: #b45309;
+  --color-warning-glow: rgba(245, 158, 11, 0.15);
+
+  /* Red — Critical/Danger */
+  --color-critical: #ef4444;
+  --color-critical-dim: #b91c1c;
+  --color-critical-glow: rgba(239, 68, 68, 0.15);
+
+  /* Green — Success/Safe */
+  --color-success: #22c55e;
+  --color-success-dim: #15803d;
+  --color-success-glow: rgba(34, 197, 94, 0.12);
+
+  /* Neutral */
+  --color-neutral: #64748b;
+
+  /* Spacing */
+  --spacing: 0.25rem;
+
+  /* Border radius — sharp/angular per user preference */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+
+  /* Shadows for dark theme */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.6);
+  --shadow-glow-cyan: 0 0 20px rgba(6, 182, 212, 0.15);
+  --shadow-glow-amber: 0 0 20px rgba(245, 158, 11, 0.15);
+  --shadow-glow-red: 0 0 20px rgba(239, 68, 68, 0.15);
+
+  /* Transitions */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   BASE LAYER
+   ============================================================ */
+
+html {
+  background-color: #050810;
+  color: #e8ecf4;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar — dark, thin */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050810;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e2840;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2a3a5c;
+}
+
+/* Focus visible */
+*:focus-visible {
+  outline: 1px solid #06b6d4;
+  outline-offset: 1px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Selection */
+::selection {
+  background: rgba(6, 182, 212, 0.3);
+  color: #e8ecf4;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+/* Pulsing glow for critical alerts */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 24px rgba(239, 68, 68, 0.6); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Scan line effect for video */
+@keyframes scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.animate-scan {
+  animation: scan 3s linear infinite;
+}
+
+/* Fade in up */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s var(--ease-smooth) both;
+}
+
+/* Pulse dot for live indicator */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* Subtle shimmer for loading states */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #0a0f1e 25%, #141c33 50%, #0a0f1e 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Status bar breathing */
+@keyframes breathe {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.animate-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* Border glow sweep */
+@keyframes border-glow {
+  0%, 100% { border-color: #06b6d4; box-shadow: 0 0 8px rgba(6, 182, 212, 0.1); }
+  50% { border-color: #22d3ee; box-shadow: 0 0 20px rgba(6, 182, 212, 0.25); }
+}
+
+.animate-border-glow {
+  animation: border-glow 2s ease-in-out infinite;
+}
+
+/* Slide down */
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.3s var(--ease-smooth) both;
+}
+
+/* Count up placeholder — used on stats */
+@keyframes count-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.animate-count-pulse {
+  animation: count-pulse 2s ease-in-out infinite;
+}
