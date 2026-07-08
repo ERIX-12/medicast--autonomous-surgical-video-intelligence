@@ -233,3 +233,97 @@ body {
 .animate-count-pulse {
   animation: count-pulse 2s ease-in-out infinite;
 }
+
+/* ============================================================
+   PRINT STYLES
+   ============================================================ */
+
+@media print {
+  /* Hide everything outside the clinical report */
+  body * {
+    display: none !important;
+  }
+
+  /* Show only the report and its children */
+  body .clinical-report,
+  body .clinical-report * {
+    display: revert !important;
+  }
+
+  .clinical-report {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .clinical-report h3,
+  .clinical-report h4,
+  .clinical-report h5 {
+    color: #111827 !important;
+  }
+
+  .clinical-report .text-foreground-muted {
+    color: #4b5563 !important;
+  }
+
+  .clinical-report .border-border {
+    border-color: #d1d5db !important;
+  }
+
+  .clinical-report .bg-surface {
+    background: #ffffff !important;
+  }
+
+  .clinical-report .bg-success\/30 {
+    background: #bbf7d0 !important;
+  }
+  .clinical-report .bg-warning\/30 {
+    background: #fef08a !important;
+  }
+  .clinical-report .bg-critical\/30 {
+    background: #fecaca !important;
+  }
+  .clinical-report .bg-critical\/5 {
+    background: #fef2f2 !important;
+  }
+  .clinical-report .bg-warning\/5 {
+    background: #fffbeb !important;
+  }
+
+  .clinical-report .text-success {
+    color: #15803d !important;
+  }
+  .clinical-report .text-warning {
+    color: #b45309 !important;
+  }
+  .clinical-report .text-critical {
+    color: #b91c1c !important;
+  }
+  .clinical-report .text-accent {
+    color: #0e7490 !important;
+  }
+
+  .clinical-report .border-critical\/30 {
+    border-color: #fca5a5 !important;
+  }
+  .clinical-report .border-warning\/30 {
+    border-color: #fcd34d !important;
+  }
+
+  /* Ensure the report fills the page nicely */
+  .clinical-report > div:last-child {
+    padding: 0 !important;
+  }
+
+  /* Page breaks - keep sections together */
+  .clinical-report .space-y-4 > div {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}

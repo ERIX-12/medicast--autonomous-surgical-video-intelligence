@@ -28,9 +28,9 @@ export default function AuthModal({ onClose }: AuthModalProps) {
     setLoading(false);
 
     if (err) {
-      setError(err.message);
+      setError(err);
     } else if (mode === 'signup') {
-      setSuccess('Account created! Check your email for a confirmation link, or try signing in.');
+      setSuccess('Account created! You can now sign in.');
     } else {
       onClose();
     }
@@ -172,7 +172,7 @@ export default function AuthModal({ onClose }: AuthModalProps) {
           {/* Demo hint */}
           <div className="pt-2 text-center">
             <p className="text-[9px] font-mono text-foreground-muted/50">
-              New accounts auto-confirmed in development mode
+              Accounts are auto-confirmed in development mode
             </p>
           </div>
         </form>

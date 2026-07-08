@@ -1,64 +1,117 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { User, AuthError } from '@supabase/supabase-js';
-import { supabase } from '../config/supabase';
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { API, apiHeaders } from '../config/api';
 
 export interface AuthState {
-  user: User | null;
+  user: { id: string; email: string } | null;
   loading: boolean;
 }
 
 export interface AuthActions {
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signOut: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: string | null }>;
+  signOut: () => void;
+  /** Return the stored JWT for use in Authorization headers */
+  getToken: () => string | null;
 }
 
 type AuthContextValue = AuthState & AuthActions;
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Storage key for the JWT token */
+const TOKEN_KEY = 'medicast_auth_token';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /** Verify stored token on mount */
   useEffect(() => {
-    // Check active session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
       setLoading(false);
-    });
+      return;
+    }
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
+    fetch(`${API.inferenceUrl}/api/auth/me`, {
+      headers: {
+        ...apiHeaders(),
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then(res => {
+        if (!res.ok) {
+          localStorage.removeItem(TOKEN_KEY);
+          return null;
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.id) {
+          setUser({ id: data.id, email: data.email });
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
-  };
+  const signIn = useCallback(async (email: string, password: string) => {
+    try {
+      const res = await fetch(`${API.inferenceUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ email, password }),
+      });
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}`,
-      },
-    });
-    return { error };
-  };
+      const data = await res.json();
+      if (!res.ok) {
+        return { error: data.detail || 'Invalid email or password' };
+      }
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+      localStorage.setItem(TOKEN_KEY, data.token);
+      setUser(data.user);
+      return { error: null };
+    } catch {
+      return { error: 'Could not connect to the server. Please try again.' };
+    }
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string) => {
+    try {
+      const res = await fetch(`${API.inferenceUrl}/api/auth/signup`, {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        return { error: data.detail || 'Could not create account' };
+      }
+
+      localStorage.setItem(TOKEN_KEY, data.token);
+      setUser(data.user);
+      return { error: null };
+    } catch {
+      return { error: 'Could not connect to the server. Please try again.' };
+    }
+  }, []);
+
+  const signOut = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
     setUser(null);
-  };
+  }, []);
+
+  const getToken = useCallback(() => {
+    return localStorage.getItem(TOKEN_KEY);
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, getToken }}>
       {children}
     </AuthContext.Provider>
   );

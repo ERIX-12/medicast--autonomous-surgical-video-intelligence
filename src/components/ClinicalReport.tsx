@@ -11,6 +11,10 @@ interface Props {
 export default function ClinicalReport({ analyses, procedure, sessionId }: Props) {
   if (analyses.length === 0) return null;
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   const totalFrames = analyses.length;
   const avgScore = Math.round(analyses.reduce((sum, a) => sum + a.arbiter.qualityScore, 0) / totalFrames);
   const criticalFrames = analyses.filter(a => a.arbiter.escalationLevel === 'CRITICAL');
@@ -25,14 +29,14 @@ export default function ClinicalReport({ analyses, procedure, sessionId }: Props
   const phases = [...new Set(analyses.map(a => a.arbiter.currentPhase).filter(Boolean))];
 
   return (
-    <div className="bg-surface border border-border">
+    <div className="bg-surface border border-border clinical-report">
       <div className="px-4 py-3 border-b border-border flex items-center gap-2">
         <FileText className="w-4 h-4 text-accent" />
         <h3 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider">
           Clinical Report
         </h3>
         <div className="ml-auto flex items-center gap-1">
-          <button className="p-1.5 text-foreground-muted hover:text-accent transition-colors cursor-pointer" title="Print">
+          <button onClick={handlePrint} className="p-1.5 text-foreground-muted hover:text-accent transition-colors cursor-pointer print:hidden" title="Print">
             <Printer className="w-3.5 h-3.5" />
           </button>
           <button className="p-1.5 text-foreground-muted hover:text-accent transition-colors cursor-pointer" title="Share">

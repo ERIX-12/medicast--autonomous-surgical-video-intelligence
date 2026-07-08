@@ -31,6 +31,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import analyze as api_routes
+from . import auth as auth_routes
 from . import database as db
 from . import websocket as ws_module
 from . import youtube as youtube_routes
@@ -98,6 +99,7 @@ app.add_middleware(
 
 # Register REST routers
 app.include_router(api_routes.router)       # /api/analyze-frame, /api/sessions, etc.
+app.include_router(auth_routes.router)      # /api/auth/signup, /api/auth/login, /api/auth/me
 app.include_router(youtube_routes.router)   # /api/fetch-youtube-frames, etc.
 
 

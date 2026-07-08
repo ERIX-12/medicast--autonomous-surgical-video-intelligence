@@ -20,8 +20,9 @@ import os
 import time
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
+from . import auth as auth_module
 from . import database as db
 from . import inference as inf
 from . import telemetry as tel
@@ -282,6 +283,29 @@ async def update_session_endpoint(session_id: str, status: str):
         status=result["status"],
         createdAt=result["createdAt"],
     )
+
+
+@router.get("/sessions")
+async def list_sessions_endpoint(
+    limit: int = 20,
+    user: dict = Depends(auth_module.get_optional_user),
+):
+    """List all sessions, ordered by created_at DESC.
+
+    If the user is authenticated, returns only their sessions.
+    """
+    user_id = user.get("id") if user else None
+    sessions = await db.list_sessions(user_id=user_id, limit=limit)
+    return {"sessions": sessions, "total": len(sessions)}
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_session_endpoint(session_id: str):
+    """Delete a session and all associated frame analyses, reports, and black-box entries."""
+    success = await db.delete_session(session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"status": "deleted", "id": session_id}
 
 
 # ─── Reports ────────────────────────────────────────────────────────────────

@@ -5,6 +5,17 @@
 -- Mirrors the Supabase schema but adapted for direct Postgres 16.
 -- =============================================================================
 
+-- ── Users Table ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS users (
+    id          UUID PRIMARY KEY,
+    email       VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
 -- ── Sessions Table ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sessions (
     id          UUID PRIMARY KEY,
@@ -12,6 +23,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     video_url   TEXT,
     status      VARCHAR(20) NOT NULL DEFAULT 'created'
                 CHECK (status IN ('created', 'analyzing', 'completed', 'failed')),
+    user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

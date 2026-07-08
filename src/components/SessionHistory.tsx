@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { History, Play, Clock, Activity, Trash2, AlertTriangle, Shield } from 'lucide-react';
-import { supabase } from '../config/supabase';
+import { History, Play, Clock, Trash2, AlertTriangle, Shield } from 'lucide-react';
+import { API, apiHeaders } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SessionRecord {
   id: string;
-  procedure_type: string | null;
+  procedureType: string | null;
   status: string;
-  video_name: string | null;
-  created_at: string;
-  frame_count?: number;
-  escalation_count?: number;
-  avg_quality?: number;
+  videoUrl: string | null;
+  createdAt: string;
+  frameCount?: number;
+  escalationCount?: number;
+  avgQuality?: number;
 }
 
 interface SessionHistoryProps {
@@ -21,62 +22,53 @@ export default function SessionHistory({ onLoadSession }: SessionHistoryProps) {
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const { getToken } = useAuth();
 
   useEffect(() => {
     const fetchSessions = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('sessions')
-        .select(`
-          id,
-          procedure_type,
-          status,
-          video_name,
-          created_at,
-          frame_analyses:frame_analyses(
-            escalation_level,
-            arbiter_verdict
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(20);
+      try {
+        const token = getToken();
+        const headers: Record<string, string> = apiHeaders();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
 
-      if (!error && data) {
-        const mapped: SessionRecord[] = data.map((s: Record<string, unknown>) => {
-          const frames = (s.frame_analyses as Array<Record<string, unknown>>) || [];
-          const escalations = frames.filter(
-            (f: Record<string, unknown>) => f.escalation_level && f.escalation_level !== 'NORMAL'
-          ).length;
-          const qualityScores = frames
-            .map((f: Record<string, unknown>) => (f.arbiter_verdict as Record<string, unknown>)?.qualityScore as number)
-            .filter((q: number) => q !== undefined);
-          const avgQuality = qualityScores.length > 0
-            ? Math.round(qualityScores.reduce((a: number, b: number) => a + b, 0) / qualityScores.length)
-            : 0;
+        const res = await fetch(`${API.inferenceUrl}/api/sessions?limit=20`, { headers });
+        if (!res.ok) {
+          setSessions([]);
+          setLoading(false);
+          return;
+        }
 
-          return {
-            id: s.id as string,
-            procedure_type: s.procedure_type as string | null,
-            status: s.status as string,
-            video_name: s.video_name as string | null,
-            created_at: s.created_at as string,
-            frame_count: frames.length,
-            escalation_count: escalations,
-            avg_quality: avgQuality,
-          };
-        });
-        setSessions(mapped);
+        const data = await res.json();
+        setSessions(data.sessions || []);
+      } catch {
+        setSessions([]);
       }
       setLoading(false);
     };
 
     fetchSessions();
-  }, []);
+  }, [getToken]);
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await supabase.from('sessions').delete().eq('id', id);
-    setSessions(prev => prev.filter(s => s.id !== id));
+    try {
+      const token = getToken();
+      const headers: Record<string, string> = apiHeaders();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      await fetch(`${API.inferenceUrl}/api/sessions/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+      setSessions(prev => prev.filter(s => s.id !== id));
+    } catch {
+      // Silently fail — the frontend stays in sync
+    }
   };
 
   const statusColor = (status: string) => {
@@ -153,17 +145,17 @@ export default function SessionHistory({ onLoadSession }: SessionHistoryProps) {
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-foreground truncate">
-                  {session.procedure_type || 'Unknown Procedure'}
+                  {session.procedureType || 'Unknown Procedure'}
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[9px] font-mono text-foreground-muted">
-                    {formatDate(session.created_at)}
+                    {formatDate(session.createdAt)}
                   </span>
-                  {session.video_name && (
+                  {session.videoUrl && (
                     <>
                       <span className="w-px h-2.5 bg-border" />
                       <span className="text-[9px] font-mono text-foreground-muted truncate">
-                        {session.video_name}
+                        {session.videoUrl.split('/').pop()}
                       </span>
                     </>
                   )}
@@ -172,19 +164,19 @@ export default function SessionHistory({ onLoadSession }: SessionHistoryProps) {
 
               {/* Badges */}
               <div className="flex items-center gap-1.5 shrink-0">
-                {session.frame_count !== undefined && session.frame_count > 0 && (
+                {session.frameCount !== undefined && session.frameCount > 0 && (
                   <span className="text-[9px] font-mono px-1.5 py-0.5 bg-accent/5 border border-accent/20 text-accent">
-                    {session.frame_count}
+                    {session.frameCount}
                   </span>
                 )}
-                {session.escalation_count && session.escalation_count > 0 && (
+                {session.escalationCount && session.escalationCount > 0 && (
                   <span className="text-[9px] font-mono px-1.5 py-0.5 bg-critical/5 border border-critical/20 text-critical">
-                    !{session.escalation_count}
+                    !{session.escalationCount}
                   </span>
                 )}
-                {session.avg_quality && session.avg_quality > 0 && (
+                {session.avgQuality && session.avgQuality > 0 && (
                   <span className="text-[9px] font-mono px-1.5 py-0.5 bg-success/5 border border-success/20 text-success">
-                    {session.avg_quality}
+                    {session.avgQuality}
                   </span>
                 )}
               </div>
@@ -207,10 +199,10 @@ export default function SessionHistory({ onLoadSession }: SessionHistoryProps) {
                     Verified
                   </span>
                 )}
-                {session.escalation_count && session.escalation_count > 0 && (
+                {session.escalationCount && session.escalationCount > 0 && (
                   <span className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono text-warning">
                     <AlertTriangle className="w-3 h-3" />
-                    {session.escalation_count} alerts
+                    {session.escalationCount} alerts
                   </span>
                 )}
                 <button

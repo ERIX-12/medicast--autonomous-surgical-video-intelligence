@@ -64,11 +64,20 @@ async def close_db_pool() -> None:
 # ─── Schema Setup ────────────────────────────────────────────────────────────
 
 CREATE_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
     id UUID PRIMARY KEY,
     procedure_type TEXT NOT NULL,
     video_url TEXT,
     status TEXT NOT NULL DEFAULT 'created',
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -99,6 +108,8 @@ CREATE TABLE IF NOT EXISTS black_boxes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_frame_analyses_session ON frame_analyses(session_id);
 CREATE INDEX IF NOT EXISTS idx_frame_analyses_escalation ON frame_analyses(escalation_level);
 CREATE INDEX IF NOT EXISTS idx_black_boxes_session ON black_boxes(session_id);
@@ -116,6 +127,66 @@ async def initialize_database() -> None:
             await conn.execute(CREATE_TABLES_SQL)
     except Exception:
         pass  # Tables may already exist or DB not available
+
+
+# ─── User Operations ─────────────────────────────────────────────────────────
+
+async def create_user(user_id: str, email: str, password_hash: str) -> bool:
+    """Create a new user account."""
+    pool = await get_db_pool()
+    if pool is None:
+        return False
+
+    async with pool.acquire() as conn:
+        try:
+            await conn.execute(
+                "INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)",
+                user_id, email, password_hash,
+            )
+            return True
+        except Exception:
+            return False
+
+
+async def get_user_by_email(email: str) -> Optional[dict[str, Any]]:
+    """Get a user by email address."""
+    pool = await get_db_pool()
+    if pool is None:
+        return None
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, email, password_hash FROM users WHERE email = $1",
+            email,
+        )
+        if row is None:
+            return None
+
+        return {
+            "id": str(row["id"]),
+            "email": row["email"],
+            "password_hash": row["password_hash"],
+        }
+
+
+async def get_user_by_id(user_id: str) -> Optional[dict[str, Any]]:
+    """Get a user by ID."""
+    pool = await get_db_pool()
+    if pool is None:
+        return None
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, email FROM users WHERE id = $1",
+            user_id,
+        )
+        if row is None:
+            return None
+
+        return {
+            "id": str(row["id"]),
+            "email": row["email"],
+        }
 
 
 # ─── Session Operations ─────────────────────────────────────────────────────
@@ -184,6 +255,86 @@ async def update_session_status(session_id: str, status: str) -> bool:
             status, session_id,
         )
         return result != "UPDATE 0"
+
+
+async def list_sessions(
+    user_id: Optional[str] = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """List sessions, optionally filtered by user_id. Ordered by created_at DESC."""
+    pool = await get_db_pool()
+    if pool is None:
+        return []
+
+    async with pool.acquire() as conn:
+        if user_id:
+            rows = await conn.fetch(
+                """SELECT s.id, s.procedure_type, s.status, s.video_url, s.created_at,
+                          COUNT(fa.id) AS frame_count,
+                          COUNT(fa.id) FILTER (WHERE fa.escalation_level != 'NONE') AS escalation_count
+                   FROM sessions s
+                   LEFT JOIN frame_analyses fa ON fa.session_id = s.id
+                   WHERE s.user_id = $1
+                   GROUP BY s.id
+                   ORDER BY s.created_at DESC
+                   LIMIT $2""",
+                user_id, limit,
+            )
+        else:
+            rows = await conn.fetch(
+                """SELECT s.id, s.procedure_type, s.status, s.video_url, s.created_at,
+                          COUNT(fa.id) AS frame_count,
+                          COUNT(fa.id) FILTER (WHERE fa.escalation_level != 'NONE') AS escalation_count
+                   FROM sessions s
+                   LEFT JOIN frame_analyses fa ON fa.session_id = s.id
+                   GROUP BY s.id
+                   ORDER BY s.created_at DESC
+                   LIMIT $1""",
+                limit,
+            )
+
+        results = []
+        for row in rows:
+            # Calculate average quality score from frame analyses
+            quality_scores = []
+            if row["frame_count"] and row["frame_count"] > 0:
+                fa_rows = await conn.fetch(
+                    "SELECT arbiter_verdict FROM frame_analyses WHERE session_id = $1",
+                    row["id"],
+                )
+                for fa in fa_rows:
+                    verdict = json.loads(fa["arbiter_verdict"])
+                    if verdict.get("qualityScore") is not None:
+                        quality_scores.append(verdict["qualityScore"])
+
+            avg_quality = round(sum(quality_scores) / len(quality_scores), 1) if quality_scores else 0
+
+            results.append({
+                "id": str(row["id"]),
+                "procedureType": row["procedure_type"],
+                "status": row["status"],
+                "videoUrl": row.get("video_url"),
+                "createdAt": row["created_at"].isoformat(),
+                "frameCount": row["frame_count"] or 0,
+                "escalationCount": row["escalation_count"] or 0,
+                "avgQuality": avg_quality,
+            })
+
+        return results
+
+
+async def delete_session(session_id: str) -> bool:
+    """Delete a session and all associated data (CASCADE)."""
+    pool = await get_db_pool()
+    if pool is None:
+        return False
+
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM sessions WHERE id = $1",
+            session_id,
+        )
+        return result != "DELETE 0"
 
 
 # ─── Frame Analysis Operations ──────────────────────────────────────────────

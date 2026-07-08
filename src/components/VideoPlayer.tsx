@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Maximize2, Camera, Monitor, ExternalLink } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Maximize2, Camera, Monitor, ExternalLink, Volume2, VolumeX } from 'lucide-react';
 import { SiYoutube } from 'react-icons/si';
 
 interface Props {
@@ -235,6 +235,22 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(
       return () => window.removeEventListener('message', handleMessage);
     }, []);
 
+    const toggleMute = () => {
+      if (isYoutube && youtubeIframeRef.current) {
+        if (isMuted) {
+          postToYoutube('unMute');
+        } else {
+          postToYoutube('mute');
+        }
+        setIsMuted(!isMuted);
+        return;
+      }
+      if (videoRef.current) {
+        videoRef.current.muted = !isMuted;
+      }
+      setIsMuted(!isMuted);
+    };
+
     const togglePlay = () => {
       if (isYoutube && youtubeIframeRef.current) {
         if (isPlaying) {
@@ -387,6 +403,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(
             title={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          </button>
+
+          {/* Mute/Unmute toggle */}
+          <button
+            onClick={toggleMute}
+            className="p-2 text-foreground-muted hover:text-accent transition-colors duration-200 cursor-pointer"
+            title={isMuted ? 'Unmute' : 'Mute'}
+          >
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
 
           {isRealVideo && duration > 0 && (
