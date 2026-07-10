@@ -302,6 +302,13 @@ async def get_session_endpoint(session_id: str):
     )
 
 
+@router.get("/sessions/{session_id}/analyses")
+async def get_session_analyses_endpoint(session_id: str):
+    """Get all frame analyses for a given session."""
+    analyses = await db.get_frame_analyses(session_id)
+    return {"analyses": analyses}
+
+
 @router.patch("/sessions/{session_id}", response_model=SessionResponse)
 async def update_session_endpoint(session_id: str, status: str):
     """Update session status."""

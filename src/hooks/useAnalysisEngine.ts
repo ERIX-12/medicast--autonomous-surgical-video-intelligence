@@ -294,10 +294,61 @@ export function useAnalysisEngine() {
     setState(prev => ({ ...prev, isAnalyzing: false }));
   }, []);
 
+  const loadPastSession = useCallback(async (
+    sessionIdToLoad: string,
+    getToken?: () => string | null
+  ) => {
+    setState({
+      isAnalyzing: true, // briefly show loading state
+      framesProcessed: 0,
+      totalFrames: 0,
+      currentFrame: 0,
+      analyses: [],
+      error: null,
+    });
+    
+    try {
+      const token = getToken ? getToken() : null;
+      const headers = apiHeaders();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      // Fetch analyses
+      const res = await fetch(`${API.inferenceUrl}/api/sessions/${sessionIdToLoad}/analyses`, { headers });
+      if (!res.ok) throw new Error('Failed to load session analyses');
+      
+      const data = await res.json();
+      const loadedAnalyses: FrameAnalysis[] = (data.analyses || []).map((a: any) => ({
+        id: a.id,
+        procedureId: 1, // Fallback, not strictly needed for UI display if not setup
+        frameNumber: a.frameIndex,
+        timestamp: Math.round(a.timestampSec * 1000),
+        zones: agentsToZones(a.agentResults),
+        arbiter: a.arbiterVerdict,
+        overallFindings: a.arbiterVerdict.summary,
+        imageUrl: null, // Images are not stored in DB, could fetch from S3 if implemented
+      }));
+
+      sessionIdRef.current = sessionIdToLoad;
+      setState({
+        isAnalyzing: false,
+        framesProcessed: loadedAnalyses.length,
+        totalFrames: loadedAnalyses.length,
+        currentFrame: loadedAnalyses.length,
+        analyses: loadedAnalyses,
+        error: null,
+      });
+
+    } catch (err) {
+      console.error(err);
+      setState(prev => ({ ...prev, isAnalyzing: false, error: 'Failed to load past session' }));
+    }
+  }, []);
+
   return {
     ...state,
     sessionId: sessionIdRef.current,
     startAnalysis,
     stopAnalysis,
+    loadPastSession,
   };
 }

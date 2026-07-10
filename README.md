@@ -14,7 +14,7 @@ In an industry where surgical errors cost billions and jeopardize patient safety
 - **Surgical Safety Assessment:** Automatically detects critical safety events and potential hazards during a procedure.
 - **Interactive Debrief:** A conversational AI that lets surgeons and students query specific parts of the surgery (e.g., *"Why did the surgeon pause at frame 142?"* or *"Was the clip applied correctly?"*).
 - **Educational Mining:** Extracts key anatomical landmarks and surgical phases to create automated training material for residents.
-- **Hardware Agnostic:** Deploys entirely via the cloud using AMD Developer Cloud and Fireworks AI, requiring zero local GPU infrastructure for hospitals.
+- **Zero Local Hardware Needed:** Deploys entirely via the cloud using AMD Developer Cloud and Fireworks AI. Hospitals do not need to install massive, expensive GPU servers in their server rooms—MediCast runs entirely via the cloud.
 
 ---
 
@@ -22,8 +22,8 @@ In an industry where surgical errors cost billions and jeopardize patient safety
 
 MediCast fully leverages the required technology stack to deliver unparalleled speed and intelligence:
 
-- **Compute:** Fully cloud-based inference powered by **AMD GPUs**.
-- **Model API:** Driven exclusively by the **Fireworks AI API** (`accounts/fireworks/models/deepseek-v4-pro`).
+- **Compute:** Fully cloud-based inference powered by **AMD Instinct™ GPUs**.
+- **Bonus Track — Best Use of Gemma Models:** The text generation and interactive debriefing engine is powered exclusively by Google's **Gemma 2** (`accounts/fireworks/models/gemma2-9b-it`), ensuring clinical accuracy and speed, while the vision tasks are routed to multimodal models.
 - **Parallel Inference Engine:** The backend orchestrates a multi-agent swarm (Anatomy Agent, Safety Agent, Phase Agent, Education Agent) executing concurrently. By utilizing the fast inference speeds of Fireworks AI on AMD hardware, MediCast processes 60+ video frames in a fraction of the time it would take traditional systems.
 
 ---
