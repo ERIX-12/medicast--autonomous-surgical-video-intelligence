@@ -3,17 +3,26 @@ import { Zap, Lock, Shield, Activity, Fingerprint } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function LandingLogin() {
-  const { signIn } = useAuth();
+  const { signIn, signUp } = useAuth();
   const [email, setEmail] = useState('surgeon@hospital.org');
   const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     // Simulate real SSO login delay
     setTimeout(async () => {
-      await signIn(email, password);
+      let result = await signIn(email, password);
+      if (result.error) {
+        // Auto-signup for hackathon demo if account doesn't exist
+        const signUpResult = await signUp(email, password);
+        if (signUpResult.error) {
+          setError(signUpResult.error);
+        }
+      }
       setLoading(false);
     }, 1500);
   };
@@ -71,6 +80,12 @@ export default function LandingLogin() {
                 required
               />
             </div>
+            
+            {error && (
+              <div className="text-[10px] font-mono text-critical bg-critical/10 border border-critical/20 p-2">
+                {error}
+              </div>
+            )}
             
             <button
               type="submit"
