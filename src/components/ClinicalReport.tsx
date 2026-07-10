@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FileText, Printer, Share2, Check, UploadCloud, Database } from 'lucide-react';
 import type { FrameAnalysis } from '../hooks/useAnalysisEngine';
 import type { ProcedureKnowledge } from '../data/types';
+import { API, apiHeaders } from '../config/api';
 
 interface Props {
   analyses: FrameAnalysis[];
@@ -26,8 +27,38 @@ export default function ClinicalReport({ analyses, procedure, sessionId }: Props
     }, 1500);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const handlePrint = async () => {
+    setIsPrinting(true);
+    try {
+      const response = await fetch(`${API.inferenceUrl}/api/report/docx`, {
+        method: 'POST',
+        headers: apiHeaders,
+        body: JSON.stringify({
+          sessionId: sessionId || 'unknown',
+          question: '', // not used
+          context: analyses
+        })
+      });
+
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `MediCast_Clinical_Report_${sessionId || 'unknown'}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to export DOCX report');
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   const totalFrames = analyses.length;
@@ -100,7 +131,7 @@ Escalations: ${criticalFrames.length} CRITICAL, ${warningFrames.length} WARNING`
           
           <div className="w-px h-4 bg-border mx-1 print:hidden" />
 
-          <button onClick={handlePrint} className="p-1.5 text-foreground-muted hover:text-accent transition-colors cursor-pointer print:hidden" title="Print">
+          <button onClick={handlePrint} disabled={isPrinting} className={`p-1.5 transition-colors cursor-pointer print:hidden ${isPrinting ? 'text-accent animate-pulse' : 'text-foreground-muted hover:text-accent'}`} title="Download DOCX Report">
             <Printer className="w-3.5 h-3.5" />
           </button>
           <button 
