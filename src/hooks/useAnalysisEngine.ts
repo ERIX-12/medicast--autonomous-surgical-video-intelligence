@@ -6,18 +6,6 @@ function isYouTubeUrl(url: string): boolean {
   return url.includes('youtube.com') || url.includes('youtu.be');
 }
 
-function extractYouTubeId(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:[&?/]|$)/,
-    /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-  ];
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) return match[1];
-  }
-  return null;
-}
-
 export interface ZoneAnalysis {
   zoneId: string;
   zoneName: string;
@@ -58,106 +46,6 @@ interface AnalysisState {
   currentFrame: number;
   analyses: FrameAnalysis[];
   error: string | null;
-}
-
-// ── Mock data generators (fallback when inference server is unreachable) ──────
-
-function mockZoneAnalysis(zoneId: string, zoneName: string, agentType: ZoneAnalysis['agentType']): ZoneAnalysis {
-  const findings: Record<string, string[]> = {
-    anatomy: [
-      'Structures clearly visible in surgical field',
-      'Anatomical landmarks well-identified',
-      'Critical structures in safe zone',
-      'Anatomical variant noted — no concern',
-      'Standard anatomy, no anomalies detected',
-    ],
-    safety: [
-      'Dissection plane maintained within safe boundaries',
-      'No thermal spread to adjacent structures',
-      'Hemostasis adequate, no active bleeding',
-      'Critical structure proximity alert — CAUTION',
-      'Instrument trajectory safe, no risk of injury',
-    ],
-    phase: [
-      'Dissection progressing at expected pace',
-      'Key landmark exposed successfully',
-      'Transition between phases smooth',
-      'Current phase consistent with surgical plan',
-      'Phase timing within expected range',
-    ],
-    education: [
-      'Good tissue handling technique observed',
-      'Instrument selection appropriate for current step',
-      'Team coordination effective',
-      'Opportunity for teaching moment identified',
-      'Technique rating: EXCELLENT',
-    ],
-  };
-
-  const severities: ZoneAnalysis['severity'][] = ['safe', 'caution', 'danger', 'critical'];
-  const weights = [0.55, 0.30, 0.10, 0.05];
-  const rand = Math.random();
-  let severityIndex = 0;
-  let cumulative = 0;
-  for (let i = 0; i < weights.length; i++) {
-    cumulative += weights[i];
-    if (rand < cumulative) { severityIndex = i; break; }
-  }
-
-  const picked = findings[agentType] || findings.anatomy;
-  const count = 1 + Math.floor(Math.random() * 3);
-  const shuffled = [...picked].sort(() => Math.random() - 0.5);
-
-  return {
-    zoneId,
-    zoneName,
-    agentType,
-    findings: shuffled.slice(0, count),
-    severity: severities[severityIndex],
-    confidence: 0.65 + Math.random() * 0.33,
-    processingTimeMs: 80 + Math.random() * 420,
-  };
-}
-
-function mockArbiterVerdict(zones: ZoneAnalysis[]): ArbiterVerdict {
-  const hasCritical = zones.some(z => z.severity === 'critical');
-  const hasDanger = zones.some(z => z.severity === 'danger');
-
-  const safeVerdicts: ArbiterVerdict[] = [
-    {
-      verdict: 'SAFE', summary: 'All structures within normal limits. Dissection proceeding cleanly.',
-      keyFindings: ['Clear anatomical visualization', 'No safety concerns identified'],
-      anatomyConfirmed: 'Gallbladder, cystic duct, CBD, liver edge',
-      currentPhase: "Dissection of Calot's Triangle", escalationLevel: 'NONE', escalationReason: '',
-      teachingPoint: 'Maintain Critical View of Safety before clipping', qualityScore: 88,
-    },
-  ];
-
-  const warnVerdicts: ArbiterVerdict[] = [
-    {
-      verdict: 'WARNING', summary: 'Approaching critical structure zone. Proceed with caution.',
-      keyFindings: ['Proximity to bile duct noted', 'Anatomy slightly distorted by inflammation'],
-      anatomyConfirmed: 'Partially obscured — cystic duct not fully visualized',
-      currentPhase: "Dissection of Calot's Triangle", escalationLevel: 'WARNING',
-      escalationReason: 'Critical structure proximity — verify anatomy before proceeding',
-      teachingPoint: 'Consider intraoperative cholangiogram if anatomy unclear', qualityScore: 62,
-    },
-  ];
-
-  const critVerdicts: ArbiterVerdict[] = [
-    {
-      verdict: 'CRITICAL', summary: 'POTENTIAL BILE DUCT INJURY RISK — immediate verification required.',
-      keyFindings: ['Structure resembling CBD in dissection field', 'Aberrant anatomy suspected'],
-      anatomyConfirmed: 'CBD NOT definitively identified', currentPhase: "Dissection of Calot's Triangle",
-      escalationLevel: 'CRITICAL', escalationReason: 'Possible CBD misidentification — STOP and reassess',
-      teachingPoint: 'When in doubt, convert to open. The safest surgeon knows when to stop.',
-      qualityScore: 25,
-    },
-  ];
-
-  if (hasCritical) return critVerdicts[0];
-  if (hasDanger) return warnVerdicts[0];
-  return Math.random() > 0.15 ? safeVerdicts[0] : warnVerdicts[0];
 }
 
 // ── Server communication ─────────────────────────────────────────────────────
@@ -229,6 +117,9 @@ function agentsToZones(
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
+/** Capture interval in ms between frames for real-time analysis */
+const CAPTURE_INTERVAL_MS = 3000; // Analyze one frame every 3 seconds
+
 export function useAnalysisEngine() {
   const [state, setState] = useState<AnalysisState>({
     isAnalyzing: false,
@@ -244,8 +135,11 @@ export function useAnalysisEngine() {
 
   const startAnalysis = useCallback(async (
     procedure: ProcedureKnowledge,
-    totalFrames: number,
+    _totalFramesHint: number,
     videoUrl?: string,
+    frameProvider?: () => string | null,
+    videoEndChecker?: () => boolean,
+    videoDurationGetter?: () => number,
   ) => {
     abortRef.current = false;
     const sessionId = crypto.randomUUID();
@@ -254,11 +148,17 @@ export function useAnalysisEngine() {
     // Detect YouTube source
     const isYoutube = videoUrl ? isYouTubeUrl(videoUrl) : false;
 
+    // Estimate total frames from video duration if available
+    const videoDuration = videoDurationGetter?.() || 0;
+    const estimatedTotalFrames = videoDuration > 0
+      ? Math.ceil(videoDuration / (CAPTURE_INTERVAL_MS / 1000))
+      : 9999; // For live camera, use a large number (runs until stopped)
+
     setState(prev => ({
       ...prev,
       isAnalyzing: true,
       framesProcessed: 0,
-      totalFrames,
+      totalFrames: estimatedTotalFrames,
       currentFrame: 0,
       analyses: [],
       error: null,
@@ -268,31 +168,65 @@ export function useAnalysisEngine() {
     let youtubeFrames: string[] | null = null;
     if (isYoutube && videoUrl) {
       try {
-        youtubeFrames = await fetchYoutubeFrames(videoUrl, totalFrames);
+        youtubeFrames = await fetchYoutubeFrames(videoUrl, estimatedTotalFrames);
+        // Update total with actual count
+        setState(prev => ({ ...prev, totalFrames: youtubeFrames!.length }));
       } catch (err) {
-        console.warn('YouTube frame fetch failed (falling back to mock analysis):', err);
+        console.error('YouTube frame fetch failed:', err);
+        setState(prev => ({
+          ...prev,
+          isAnalyzing: false,
+          error: err instanceof Error ? err.message : String(err)
+        }));
+        return;
       }
     }
 
-    for (let frameNum = 1; frameNum <= totalFrames; frameNum++) {
-      if (abortRef.current) break;
+    let frameNum = 0;
 
-      // Get the base64 frame for this iteration (if available)
-      const frameForAnalysis = youtubeFrames?.[frameNum - 1] ?? null;
+    // ── Continuous analysis loop ──
+    while (!abortRef.current) {
+      frameNum++;
+
+      // Check if video has ended (for uploaded files)
+      if (videoEndChecker?.()) {
+        // Update the final total to match what we actually processed
+        setState(prev => ({ ...prev, totalFrames: frameNum - 1 }));
+        break;
+      }
+
+      // For YouTube pre-fetched frames, stop when we run out
+      if (youtubeFrames && frameNum > youtubeFrames.length) {
+        setState(prev => ({ ...prev, totalFrames: youtubeFrames!.length }));
+        break;
+      }
+
+      // Get the base64 frame for this iteration
+      let frameForAnalysis = youtubeFrames?.[frameNum - 1] ?? null;
+      if (!frameForAnalysis && frameProvider) {
+        frameForAnalysis = frameProvider();
+      }
+
+      // If no frame could be captured (e.g. video not ready yet), wait and retry
+      if (!frameForAnalysis) {
+        await new Promise(r => setTimeout(r, 500));
+        frameNum--; // Don't count this as a processed frame
+        continue;
+      }
 
       let zones: ZoneAnalysis[];
       let arbiter: ArbiterVerdict;
 
       try {
-        // Call the inference server (use mock endpoint for development, no GPU needed)
-        const response = await fetch(`${API.inferenceUrl}/api/analyze-frame-mock`, {
+        // Call the REAL inference server endpoint for Fireworks AI
+        const response = await fetch(`${API.inferenceUrl}/api/analyze-frame`, {
           method: 'POST',
           headers: apiHeaders(),
           body: JSON.stringify({
-            frame: frameForAnalysis ?? 'placeholder',
+            frame: frameForAnalysis,
             procedureId: procedure.procedureId,
             procedureName: procedure.name,
-            frameIndex: frameNum - 1, // server expects zero-based
+            frameIndex: frameNum - 1,
             sessionId,
             prompts: procedure.promptContext,
           }),
@@ -315,15 +249,13 @@ export function useAnalysisEngine() {
           throw new Error('Invalid response from inference server');
         }
       } catch (err) {
-        // Fall back to local mock data if the inference server is unreachable
-        console.warn('Inference server call failed (falling back to mock):', err);
-        zones = [
-          mockZoneAnalysis('zone-anatomy', 'Anatomy Agent', 'anatomy'),
-          mockZoneAnalysis('zone-safety', 'Safety Agent', 'safety'),
-          mockZoneAnalysis('zone-phase', 'Phase Agent', 'phase'),
-          mockZoneAnalysis('zone-education', 'Education Agent', 'education'),
-        ];
-        arbiter = mockArbiterVerdict(zones);
+        console.error('Inference server call failed:', err);
+        setState(prev => ({
+          ...prev,
+          isAnalyzing: false,
+          error: err instanceof Error ? err.message : String(err)
+        }));
+        break;
       }
 
       const analysisId = crypto.randomUUID();
@@ -337,9 +269,7 @@ export function useAnalysisEngine() {
         zones,
         arbiter,
         overallFindings: arbiter.summary,
-        imageUrl: frameForAnalysis
-          ? `data:image/jpeg;base64,${frameForAnalysis}`
-          : null,
+        imageUrl: `data:image/jpeg;base64,${frameForAnalysis}`,
       };
 
       setState(prev => ({
@@ -349,17 +279,14 @@ export function useAnalysisEngine() {
         analyses: [...prev.analyses, analysis],
       }));
 
-      // If we're using mock data (no real frames), simulate a small delay
+      // Wait before capturing the next frame
+      // This paces the analysis to match real-time video progression
       if (!youtubeFrames) {
-        await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
+        await new Promise(r => setTimeout(r, CAPTURE_INTERVAL_MS));
       }
-    } // end for loop
+    } // end while loop
 
-    if (!abortRef.current) {
-      setState(prev => ({ ...prev, isAnalyzing: false }));
-    } else {
-      setState(prev => ({ ...prev, isAnalyzing: false }));
-    }
+    setState(prev => ({ ...prev, isAnalyzing: false }));
   }, []);
 
   const stopAnalysis = useCallback(() => {
@@ -373,4 +300,4 @@ export function useAnalysisEngine() {
     startAnalysis,
     stopAnalysis,
   };
-}
+}

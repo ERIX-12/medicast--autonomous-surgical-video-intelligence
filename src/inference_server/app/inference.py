@@ -13,6 +13,8 @@ import asyncio
 import json
 import random
 import time
+import base64
+import httpx
 from typing import Any, Optional
 
 from . import agents as agent_prompts
@@ -446,6 +448,33 @@ class InferenceEngine:
             # TODO: Implement Ollama API call
             # POST {self.endpoint}/api/chat
             raise NotImplementedError("Ollama integration not yet implemented")
+        elif self.provider == "fireworks":
+            url = "https://api.fireworks.ai/inference/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            b64_image = base64.b64encode(frame).decode('utf-8')
+            payload = {
+                "model": "accounts/fireworks/models/llama-v3.2-11b-vision-instruct",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt + "\nRespond ONLY with a valid JSON object matching the requested schema. Do not include markdown formatting or backticks."},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}}
+                        ]
+                    }
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.1
+            }
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.post(url, headers=headers, json=payload)
+                res.raise_for_status()
+                data = res.json()
+                content = data["choices"][0]["message"]["content"]
+                return json.loads(content)
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 
@@ -458,6 +487,27 @@ class InferenceEngine:
             raise NotImplementedError("vLLM text integration not yet implemented")
         elif self.provider == "ollama":
             raise NotImplementedError("Ollama text integration not yet implemented")
+        elif self.provider == "fireworks":
+            url = "https://api.fireworks.ai/inference/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            full_prompt = f"{prompt}\n\nContext:\n{context}\n\nRespond ONLY with a valid JSON object matching the requested schema. Do not include markdown formatting or backticks."
+            payload = {
+                "model": "accounts/fireworks/models/llama-v3p3-70b-instruct",
+                "messages": [
+                    {"role": "user", "content": full_prompt}
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.1
+            }
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.post(url, headers=headers, json=payload)
+                res.raise_for_status()
+                data = res.json()
+                content = data["choices"][0]["message"]["content"]
+                return json.loads(content)
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 

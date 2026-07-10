@@ -41,9 +41,9 @@ router = APIRouter(prefix="/api")
 
 # ─── Inference Engine ────────────────────────────────────────────────────────
 
-INFERENCE_PROVIDER = os.environ.get("INFERENCE_PROVIDER")
+INFERENCE_PROVIDER = os.environ.get("INFERENCE_PROVIDER", "fireworks")
 INFERENCE_ENDPOINT = os.environ.get("INFERENCE_ENDPOINT")
-INFERENCE_API_KEY = os.environ.get("INFERENCE_API_KEY")
+INFERENCE_API_KEY = os.environ.get("INFERENCE_API_KEY", "fw_QdWMoKVjY8xeicpioEtMSx")
 
 engine = inf.create_inference_engine(
     provider=INFERENCE_PROVIDER,

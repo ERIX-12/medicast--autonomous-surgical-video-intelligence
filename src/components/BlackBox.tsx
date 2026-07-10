@@ -21,6 +21,7 @@ export default function BlackBox({ analyses, procedure, sessionId }: Props) {
   const [isSealed, setIsSealed] = useState(false);
   const [sealHash, setSealHash] = useState<string | null>(null);
   const [isSealing, setIsSealing] = useState(false);
+  const [sealedPayload, setSealedPayload] = useState<string | null>(null);
 
   if (analyses.length === 0) return null;
 
@@ -49,9 +50,27 @@ export default function BlackBox({ analyses, procedure, sessionId }: Props) {
 
     const hash = await computeSha256(payload);
     setSealHash(hash);
+    setSealedPayload(payload);
     setIsSealed(true);
     setIsSealing(false);
   }, [sessionId, procedure, totalFrames, safeCount, warningCount, criticalCount, avgScore]);
+
+  const handleDownload = useCallback(() => {
+    if (!sealedPayload || !sealHash) return;
+    const data = JSON.stringify({
+      ...JSON.parse(sealedPayload),
+      hash: sealHash
+    }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `medicast-session-${sessionId || 'record'}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [sealedPayload, sealHash, sessionId]);
 
   return (
     <div className="bg-surface border border-border">
@@ -144,6 +163,7 @@ export default function BlackBox({ analyses, procedure, sessionId }: Props) {
           </button>
         ) : (
           <button
+            onClick={handleDownload}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-surface border border-border
                        text-foreground-muted text-xs font-semibold tracking-wider uppercase
                        hover:border-accent/40 hover:text-accent hover:bg-accent/[0.03]

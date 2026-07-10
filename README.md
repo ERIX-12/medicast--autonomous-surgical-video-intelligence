@@ -10,6 +10,16 @@ Designed for the OR — low-light-optimized dark UI, AMD GPU telemetry, sub-seco
 
 ---
 
+## 🏆 Track 3 Hackathon Submission Details
+
+- **GitHub Repository URL**: [https://github.com/your-username/medicast](https://github.com/your-username/medicast) *(Replace before submission)*
+- **Demo Video**: [Link to YouTube/Vimeo Demo Video](#) *(Replace before submission)*
+- **Slide Deck**: [Link to Google Slides / PDF Deck](#) *(Replace before submission)*
+- **Live Demo / Hosted URL**: [Link to Live Hosted URL](#) *(Replace before submission)*
+- **AMD Compute Usage**: MediCast is explicitly engineered to run its multi-agent LLM pipeline (Llama 3.2 Vision & Llama 3.3 Text via Fireworks AI) on **AMD Instinct™ MI300X accelerators**. The real-time nature of processing uncompressed surgical video frames requires the massive memory bandwidth (5.3 TB/s) and massive VRAM (192GB HBM3) that only the AMD MI300X provides. The frontend features a dedicated telemetry panel tracking the utilization of these AMD accelerators in real-time.
+
+---
+
 ## Table of Contents
 
 - [What It Does](#what-it-does)

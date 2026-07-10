@@ -1,10 +1,12 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Play, Square, Activity, Menu, X, Zap, Upload, Timer, Gauge, Shield, User, LogOut, History } from 'lucide-react';
+import { Play, Square, Activity, Menu, X, Zap, Upload, Timer, Gauge, Shield, User, LogOut, History, Volume2, VolumeX } from 'lucide-react';
 import ProcedureSelector from './ProcedureSelector';
 import VideoPlayer from './VideoPlayer';
 import ZonePanel from './ZonePanel';
 import ArbiterVerdict from './ArbiterVerdict';
 import AgentFeed, { type AgentMessage } from './AgentFeed';
+import PipelineVisualizer from './PipelineVisualizer';
+import type { VideoPlayerHandle } from './VideoPlayer';
 import AlertBanner from './AlertBanner';
 import TelemetryPanel from './TelemetryPanel';
 import TimelineChart from './TimelineChart';
@@ -19,7 +21,6 @@ import { useTelemetry } from '../hooks/useTelemetry';
 import { useAuth } from '../contexts/AuthContext';
 import type { ProcedureKnowledge } from '../data/types';
 
-const FRAMES_PER_SESSION = 24;
 
 export default function Dashboard() {
   const [procedure, setProcedure] = useState<ProcedureKnowledge | null>(null);
@@ -31,14 +32,15 @@ export default function Dashboard() {
   const [sessionTimer, setSessionTimer] = useState(0);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [voiceAlertsEnabled, setVoiceAlertsEnabled] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mainRef = useRef<HTMLDivElement>(null);
+  const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
   const { user, loading: authLoading, signOut } = useAuth();
 
   const {
     isAnalyzing,
-    framesProcessed,
     totalFrames,
     currentFrame,
     analyses,
@@ -123,7 +125,18 @@ export default function Dashboard() {
     if (!procedure) return;
     setSessionTimer(0);
     setPhase('running');
-    startAnalysis(procedure, FRAMES_PER_SESSION, videoUrl || undefined);
+    const frameProvider = () => {
+      const canvas = videoPlayerRef.current?.captureFrame();
+      if (!canvas) return null;
+      return canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+    };
+    const videoEndChecker = () => {
+      return videoPlayerRef.current?.isEnded() ?? false;
+    };
+    const videoDurationGetter = () => {
+      return videoPlayerRef.current?.getDuration() ?? 0;
+    };
+    startAnalysis(procedure, 0, videoUrl || undefined, frameProvider, videoEndChecker, videoDurationGetter);
   }, [procedure, startAnalysis, videoUrl]);
 
   const handleStop = useCallback(() => {
@@ -134,11 +147,40 @@ export default function Dashboard() {
 
   // Watch for completion
   useEffect(() => {
-    if (phase === 'running' && !isAnalyzing && allAnalyses.length > 0 && framesProcessed >= totalFrames) {
+    if (phase === 'running' && !isAnalyzing && analyses.length > 0) {
       setPhase('completed');
       if (timerRef.current) clearInterval(timerRef.current);
     }
-  }, [phase, isAnalyzing, allAnalyses.length, framesProcessed, totalFrames]);
+  }, [phase, isAnalyzing, analyses.length]);
+
+  // Voice Synthesis for Critical/Warning Alerts
+  const prevAnalysesLength = useRef(0);
+  useEffect(() => {
+    if (analyses.length > prevAnalysesLength.current) {
+      const latestAnalysis = analyses[analyses.length - 1];
+      if (latestAnalysis && latestAnalysis.arbiter && voiceAlertsEnabled && phase === 'running') {
+        const level = latestAnalysis.arbiter.escalationLevel;
+        if (level === 'CRITICAL' || level === 'WARNING') {
+          if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); // Clear queue
+            const prefix = level === 'CRITICAL' ? 'Critical Alert.' : 'Warning.';
+            const textToSpeak = `${prefix} ${latestAnalysis.arbiter.escalationReason}`;
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.rate = 1.1;
+            utterance.pitch = level === 'CRITICAL' ? 1.2 : 1.0;
+            // Best effort voice selection for professional sound
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(v => v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Siri')) || voices[0];
+            if (preferredVoice) {
+              utterance.voice = preferredVoice;
+            }
+            window.speechSynthesis.speak(utterance);
+          }
+        }
+      }
+      prevAnalysesLength.current = analyses.length;
+    }
+  }, [analyses, voiceAlertsEnabled, phase]);
 
   const handleNewSession = () => {
     setPhase('setup');
@@ -224,6 +266,20 @@ export default function Dashboard() {
 
           {/* Right Actions */}
           <div className="ml-auto flex items-center gap-2">
+            {/* Voice Alerts Toggle */}
+            <button
+              onClick={() => setVoiceAlertsEnabled(!voiceAlertsEnabled)}
+              className="flex items-center gap-1.5 px-3 py-2 text-foreground-muted
+                         hover:text-accent hover:bg-surface-hover
+                         transition-all duration-200 cursor-pointer border border-transparent hover:border-border"
+              title={voiceAlertsEnabled ? "Disable Voice Alerts" : "Enable Voice Alerts"}
+            >
+              {voiceAlertsEnabled ? <Volume2 className="w-3.5 h-3.5 text-accent" /> : <VolumeX className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline text-[10px] font-mono tracking-wider uppercase">Voice</span>
+            </button>
+
+            <div className="w-px h-6 bg-border" />
+
             {/* History Toggle */}
             <button
               onClick={() => setHistoryOpen(!historyOpen)}
@@ -364,7 +420,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <SessionHistory onLoadSession={(id) => { setHistoryOpen(false); }} />
+                <SessionHistory onLoadSession={(_id) => { setHistoryOpen(false); }} />
               </div>
             </div>
           </div>
@@ -442,6 +498,7 @@ export default function Dashboard() {
                   {videoUrl ? (
                     <div className="w-full">
                       <VideoPlayer
+                        ref={videoPlayerRef}
                         isActive={false}
                         currentFrame={0}
                         totalFrames={1}
@@ -487,9 +544,10 @@ export default function Dashboard() {
               {/* Left Column */}
               <div className="space-y-5">
                 <VideoPlayer
+                  ref={videoPlayerRef}
                   isActive={isAnalyzing}
                   currentFrame={currentFrame}
-                  totalFrames={totalFrames || FRAMES_PER_SESSION}
+                  totalFrames={totalFrames || 9999}
                   videoUrl={videoUrl}
                   videoSource={videoSource || undefined}
                   youtubeVideoId={youtubeVideoId}
@@ -516,6 +574,8 @@ export default function Dashboard() {
 
               {/* Right Column */}
               <div className="space-y-5">
+                <PipelineVisualizer isAnalyzing={isAnalyzing} latestAnalysis={allAnalyses[allAnalyses.length - 1]} />
+
                 {/* Agent Feed */}
                 <div className="bg-surface border border-border overflow-hidden">
                   <div className="px-4 py-3 border-b border-border flex items-center gap-2">

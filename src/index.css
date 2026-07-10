@@ -239,15 +239,9 @@ body {
    ============================================================ */
 
 @media print {
-  /* Hide everything outside the clinical report */
-  body * {
+  /* Hide everything that doesn't contain the report, isn't the report, and isn't inside the report */
+  body *:not(:has(.clinical-report)):not(.clinical-report):not(.clinical-report *) {
     display: none !important;
-  }
-
-  /* Show only the report and its children */
-  body .clinical-report,
-  body .clinical-report * {
-    display: revert !important;
   }
 
   .clinical-report {
