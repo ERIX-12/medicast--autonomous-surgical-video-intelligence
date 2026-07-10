@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [voiceAlertsEnabled, setVoiceAlertsEnabled] = useState(true);
+  const [patientData, setPatientData] = useState<any>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const videoPlayerRef = useRef<VideoPlayerHandle>(null);
@@ -473,7 +474,7 @@ export default function Dashboard() {
 
                 {videoUrl && (
                   <PatientSignUpForm 
-                    onSubmit={(data) => console.log('Patient sign-up data:', data)} 
+                    onSubmit={setPatientData} 
                   />
                 )}
 
@@ -595,7 +596,7 @@ export default function Dashboard() {
                   <>
                     <div className="grid md:grid-cols-2 gap-5">
                       <BlackBox analyses={allAnalyses} procedure={procedure} sessionId={sessionId} />
-                      <ClinicalReport analyses={allAnalyses} procedure={procedure} sessionId={sessionId} />
+                      <ClinicalReport analyses={allAnalyses} procedure={procedure} sessionId={sessionId} patientData={patientData} />
                     </div>
                     <DebriefChat analyses={allAnalyses} sessionId={sessionId || ''} />
                   </>

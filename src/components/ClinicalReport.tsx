@@ -8,9 +8,10 @@ interface Props {
   analyses: FrameAnalysis[];
   procedure: ProcedureKnowledge | null;
   sessionId: string | null;
+  patientData?: any;
 }
 
-export default function ClinicalReport({ analyses, procedure, sessionId }: Props) {
+export default function ClinicalReport({ analyses, procedure, sessionId, patientData }: Props) {
   const [copied, setCopied] = useState(false);
   const [emrSyncing, setEmrSyncing] = useState(false);
   const [emrSynced, setEmrSynced] = useState(false);
@@ -27,38 +28,67 @@ export default function ClinicalReport({ analyses, procedure, sessionId }: Props
     }, 1500);
   };
 
-  const [isPrinting, setIsPrinting] = useState(false);
+  const handlePrintPDF = () => {
+    window.print();
+  };
 
-  const handlePrint = async () => {
-    setIsPrinting(true);
-    try {
-      const response = await fetch(`${API.inferenceUrl}/api/report/docx`, {
-        method: 'POST',
-        headers: apiHeaders(),
-        body: JSON.stringify({
-          sessionId: sessionId || 'unknown',
-          question: '', // not used
-          context: analyses
-        })
-      });
-
-      if (!response.ok) throw new Error('Export failed');
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `MediCast_Clinical_Report_${sessionId || 'unknown'}.docx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (e) {
-      console.error(e);
-      alert('Failed to export DOCX report');
-    } finally {
-      setIsPrinting(false);
-    }
+  const handleExportWord = () => {
+    const content = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head><meta charset='utf-8'><title>Clinical Report</title></head>
+      <body style="font-family: Arial, sans-serif;">
+        <h1>MediCast Clinical Report</h1>
+        ${patientData ? `
+          <h2>Patient & Session Details</h2>
+          <p><strong>Title:</strong> ${patientData.title || 'N/A'}</p>
+          <p><strong>Procedure Type:</strong> ${patientData.procedureType || 'N/A'}</p>
+          <p><strong>Surgeon:</strong> ${patientData.surgeonName || 'N/A'}</p>
+          <p><strong>Patient ID:</strong> ${patientData.patientId || 'N/A'}</p>
+          <p><strong>Date:</strong> ${patientData.surgeryDate || 'N/A'}</p>
+          <p><strong>Duration:</strong> ${patientData.duration ? patientData.duration + ' min' : 'N/A'}</p>
+          <p><strong>Department:</strong> ${patientData.department || 'N/A'}</p>
+          <p><strong>Notes:</strong> ${patientData.notes || 'N/A'}</p>
+          <hr/>
+        ` : ''}
+        <h2>Analysis Summary</h2>
+        <p><strong>Procedure:</strong> ${procedure?.name || 'Unknown'}</p>
+        <p><strong>Session:</strong> ${sessionId || 'Unknown'}</p>
+        <p><strong>Frames Analyzed:</strong> ${analyses.length}</p>
+        <p><strong>Quality Score:</strong> ${Math.round(analyses.reduce((sum, a) => sum + a.arbiter.qualityScore, 0) / (analyses.length || 1))}/100</p>
+        
+        <h2>Escalations</h2>
+        ${analyses.filter(a => a.arbiter.escalationLevel === 'CRITICAL').length > 0 ? `
+          <h3>Critical Conditions</h3>
+          ${analyses.filter(a => a.arbiter.escalationLevel === 'CRITICAL').map(f => `
+            <div style="border: 1px solid red; padding: 10px; margin-bottom: 10px;">
+              <p><strong>Frame ${f.frameNumber}</strong>: ${f.arbiter.escalationReason}</p>
+              <p>${f.arbiter.summary}</p>
+              <p>Findings: ${f.arbiter.keyFindings.join('; ')}</p>
+            </div>
+          `).join('')}
+        ` : ''}
+        
+        ${analyses.filter(a => a.arbiter.escalationLevel === 'WARNING').length > 0 ? `
+          <h3>Warnings</h3>
+          ${analyses.filter(a => a.arbiter.escalationLevel === 'WARNING').map(f => `
+            <div style="border: 1px solid orange; padding: 10px; margin-bottom: 10px;">
+              <p><strong>Frame ${f.frameNumber}</strong>: ${f.arbiter.escalationReason}</p>
+              <p>${f.arbiter.summary}</p>
+            </div>
+          `).join('')}
+        ` : ''}
+      </body>
+      </html>
+    `;
+    const blob = new Blob([content], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `MediCast_Clinical_Report_${sessionId || 'unknown'}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   const totalFrames = analyses.length;
@@ -131,9 +161,16 @@ Escalations: ${criticalFrames.length} CRITICAL, ${warningFrames.length} WARNING`
           
           <div className="w-px h-4 bg-border mx-1 print:hidden" />
 
-          <button onClick={handlePrint} disabled={isPrinting} className={`p-1.5 transition-colors cursor-pointer print:hidden ${isPrinting ? 'text-accent animate-pulse' : 'text-foreground-muted hover:text-accent'}`} title="Download DOCX Report">
-            <Printer className="w-3.5 h-3.5" />
+          <button onClick={handleExportWord} className="flex items-center gap-1 p-1.5 text-[10px] font-mono uppercase tracking-wider text-foreground-muted hover:text-accent transition-colors cursor-pointer print:hidden" title="Download Word Document">
+            <FileText className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Word</span>
           </button>
+          
+          <button onClick={handlePrintPDF} className="flex items-center gap-1 p-1.5 text-[10px] font-mono uppercase tracking-wider text-foreground-muted hover:text-accent transition-colors cursor-pointer print:hidden" title="Print to PDF">
+            <Printer className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">PDF</span>
+          </button>
+          
           <button 
             onClick={handleShare}
             className="p-1.5 text-foreground-muted hover:text-accent transition-colors cursor-pointer print:hidden" 
@@ -150,13 +187,58 @@ Escalations: ${criticalFrames.length} CRITICAL, ${warningFrames.length} WARNING`
           <h4 className="text-sm font-bold text-foreground font-heading">
             {procedure?.name || 'Surgical Procedure'} — AI Analysis Report
           </h4>
-          <div className="flex gap-4 mt-2 text-[10px] font-mono text-foreground-muted">
+          <div className="flex gap-4 mt-2 text-[10px] font-mono text-foreground-muted flex-wrap">
             <span>Session: {sessionId?.slice(0, 8) || '—'}</span>
             <span>Frames: {totalFrames}</span>
             <span>Score: {avgScore}/100</span>
             <span className="text-accent border-l border-border pl-4">Compute: AMD Instinct MI300X</span>
           </div>
         </div>
+
+        {/* Patient Info */}
+        {patientData && (
+          <div className="bg-surface border border-border p-3 rounded-md">
+            <h5 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-2">
+              Patient & Session Details
+            </h5>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div>
+                <span className="text-foreground-muted text-[10px] block">Title</span>
+                <span className="text-foreground">{patientData.title || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-foreground-muted text-[10px] block">Procedure</span>
+                <span className="text-foreground">{patientData.procedureType || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-foreground-muted text-[10px] block">Surgeon</span>
+                <span className="text-foreground">{patientData.surgeonName || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-foreground-muted text-[10px] block">Patient ID</span>
+                <span className="text-foreground font-mono">{patientData.patientId || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-foreground-muted text-[10px] block">Date</span>
+                <span className="text-foreground">{patientData.surgeryDate || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-foreground-muted text-[10px] block">Duration</span>
+                <span className="text-foreground">{patientData.duration ? `${patientData.duration} min` : 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-foreground-muted text-[10px] block">Department</span>
+                <span className="text-foreground">{patientData.department || 'N/A'}</span>
+              </div>
+            </div>
+            {patientData.notes && (
+              <div className="mt-2 text-xs">
+                <span className="text-foreground-muted text-[10px] block">Notes</span>
+                <span className="text-foreground whitespace-pre-wrap">{patientData.notes}</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Verdict Distribution */}
         <div>
