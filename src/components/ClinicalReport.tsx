@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Printer, Share2, Check, UploadCloud, Database } from 'lucide-react';
+import { FileText, Printer, Share2, Check, Database } from 'lucide-react';
 import type { FrameAnalysis } from '../hooks/useAnalysisEngine';
 import type { ProcedureKnowledge } from '../data/types';
 import { API, apiHeaders } from '../config/api';
@@ -34,7 +34,7 @@ export default function ClinicalReport({ analyses, procedure, sessionId }: Props
     try {
       const response = await fetch(`${API.inferenceUrl}/api/report/docx`, {
         method: 'POST',
-        headers: apiHeaders,
+        headers: apiHeaders(),
         body: JSON.stringify({
           sessionId: sessionId || 'unknown',
           question: '', // not used

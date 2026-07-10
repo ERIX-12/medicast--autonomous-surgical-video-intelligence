@@ -112,7 +112,7 @@ export default function DebriefChat({ analyses, sessionId }: Props) {
     try {
       const response = await fetch(`${API.inferenceUrl}/api/report/${format}`, {
         method: 'POST',
-        headers: apiHeaders,
+        headers: apiHeaders(),
         body: JSON.stringify({
           sessionId,
           question: '', // not used
