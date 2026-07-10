@@ -568,7 +568,7 @@ export default function Dashboard() {
                 />
 
                 {allAnalyses.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {allAnalyses[allAnalyses.length - 1].zones.map((zone, i) => (
                       <ZonePanel key={zone.zoneId} zone={zone} index={i} isAnalyzing={isAnalyzing} />
                     ))}
