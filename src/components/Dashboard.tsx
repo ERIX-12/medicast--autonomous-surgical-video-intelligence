@@ -38,7 +38,7 @@ export default function Dashboard() {
   const mainRef = useRef<HTMLDivElement>(null);
   const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut, getToken } = useAuth();
 
   const {
     isAnalyzing,
@@ -48,7 +48,14 @@ export default function Dashboard() {
     startAnalysis,
     stopAnalysis,
     sessionId,
+    loadPastSession,
   } = useAnalysisEngine();
+
+  const handleLoadSession = async (id: string) => {
+    setHistoryOpen(false);
+    await loadPastSession(id, getToken);
+    setPhase('completed');
+  };
 
   const { liveAnalyses } = useRealtime(sessionId);
   const { current: telemetry, history: telemetryHistory } = useTelemetry(isAnalyzing);
@@ -433,7 +440,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <SessionHistory onLoadSession={(_id) => { setHistoryOpen(false); }} />
+                <SessionHistory onLoadSession={handleLoadSession} />
               </div>
             </div>
           </div>

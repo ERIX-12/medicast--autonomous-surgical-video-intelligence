@@ -398,7 +398,7 @@ class InferenceEngine:
                     "Content-Type": "application/json"
                 }
                 payload = {
-                    "model": "accounts/fireworks/models/deepseek-v4-pro",
+                    "model": "accounts/fireworks/models/gemma2-9b-it",
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": question}
@@ -930,7 +930,7 @@ class InferenceEngine:
             }
             full_prompt = f"{prompt}\n\nContext:\n{context}\n\nRespond ONLY with a valid JSON object matching the requested schema. Do not include markdown formatting or backticks."
             payload = {
-                "model": "accounts/fireworks/models/llama-v3p3-70b-instruct",
+                "model": "accounts/fireworks/models/gemma2-9b-it",
                 "messages": [
                     {"role": "user", "content": full_prompt}
                 ],
