@@ -7,10 +7,14 @@
 
 export const API = {
   /** Base URL for the FastAPI inference server REST endpoints */
-  inferenceUrl: import.meta.env.VITE_INFERENCE_URL || 'http://localhost:8000',
+  inferenceUrl: import.meta.env.VITE_RENDER_BACKEND_HOST
+    ? `https://${import.meta.env.VITE_RENDER_BACKEND_HOST}`
+    : import.meta.env.VITE_INFERENCE_URL || 'http://localhost:8000',
 
   /** WebSocket URL for real-time frame analysis streaming */
-  wsUrl: import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws',
+  wsUrl: import.meta.env.VITE_RENDER_BACKEND_HOST
+    ? `wss://${import.meta.env.VITE_RENDER_BACKEND_HOST}/ws`
+    : import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws',
 
   /** MinIO / S3-compatible object storage config */
   minio: {
