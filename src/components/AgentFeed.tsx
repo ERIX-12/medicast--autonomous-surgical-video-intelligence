@@ -51,10 +51,9 @@ function verdictColor(verdict: string): string {
 export default function AgentFeed({ messages }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll removed as requested by user
-  // useEffect(() => {
-  //   bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  // }, [messages.length]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
 
   if (messages.length === 0) {
     return (

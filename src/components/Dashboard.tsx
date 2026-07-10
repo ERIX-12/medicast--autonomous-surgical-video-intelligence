@@ -14,7 +14,6 @@ import BlackBox from './BlackBox';
 import ClinicalReport from './ClinicalReport';
 import DebriefChat from './DebriefChat';
 import VideoUploader from './VideoUploader';
-import PatientSignUpForm from './PatientSignUpForm';
 import AuthModal from './AuthModal';
 import SessionHistory from './SessionHistory';
 import { useAnalysisEngine } from '../hooks/useAnalysisEngine';
@@ -35,12 +34,11 @@ export default function Dashboard() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [voiceAlertsEnabled, setVoiceAlertsEnabled] = useState(true);
-  const [patientData, setPatientData] = useState<any>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const videoPlayerRef = useRef<VideoPlayerHandle>(null);
 
-  const { user, loading: authLoading, signOut, getToken } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
 
   const {
     isAnalyzing,
@@ -50,14 +48,7 @@ export default function Dashboard() {
     startAnalysis,
     stopAnalysis,
     sessionId,
-    loadPastSession,
   } = useAnalysisEngine();
-
-  const handleLoadSession = async (id: string) => {
-    setHistoryOpen(false);
-    await loadPastSession(id, getToken);
-    setPhase('completed');
-  };
 
   const { liveAnalyses } = useRealtime(sessionId);
   const { current: telemetry, history: telemetryHistory } = useTelemetry(isAnalyzing);
@@ -442,7 +433,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <SessionHistory onLoadSession={handleLoadSession} />
+                <SessionHistory onLoadSession={(_id) => { setHistoryOpen(false); }} />
               </div>
             </div>
           </div>
@@ -471,12 +462,6 @@ export default function Dashboard() {
                     <VideoUploader onUploadComplete={handleUploadComplete} />
                   </div>
                 </div>
-
-                {videoUrl && (
-                  <PatientSignUpForm 
-                    onSubmit={setPatientData} 
-                  />
-                )}
 
                 {procedure && (
                   <div className="bg-surface border border-accent/20 p-4 relative overflow-hidden">
@@ -596,7 +581,7 @@ export default function Dashboard() {
                   <>
                     <div className="grid md:grid-cols-2 gap-5">
                       <BlackBox analyses={allAnalyses} procedure={procedure} sessionId={sessionId} />
-                      <ClinicalReport analyses={allAnalyses} procedure={procedure} sessionId={sessionId} patientData={patientData} />
+                      <ClinicalReport analyses={allAnalyses} procedure={procedure} sessionId={sessionId} />
                     </div>
                     <DebriefChat analyses={allAnalyses} sessionId={sessionId || ''} />
                   </>
