@@ -14,6 +14,7 @@ import BlackBox from './BlackBox';
 import ClinicalReport from './ClinicalReport';
 import DebriefChat from './DebriefChat';
 import VideoUploader from './VideoUploader';
+import PatientSignUpForm from './PatientSignUpForm';
 import AuthModal from './AuthModal';
 import SessionHistory from './SessionHistory';
 import { useAnalysisEngine } from '../hooks/useAnalysisEngine';
@@ -462,6 +463,12 @@ export default function Dashboard() {
                     <VideoUploader onUploadComplete={handleUploadComplete} />
                   </div>
                 </div>
+
+                {videoUrl && (
+                  <PatientSignUpForm 
+                    onSubmit={(data) => console.log('Patient sign-up data:', data)} 
+                  />
+                )}
 
                 {procedure && (
                   <div className="bg-surface border border-accent/20 p-4 relative overflow-hidden">
