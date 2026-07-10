@@ -1,12 +1,13 @@
 # Render Blueprint for MediCast
 # Deploy automatically by linking your GitHub repository to Render and selecting "Blueprint".
 
-services:
+databases:
   # 1. PostgreSQL Database
-  - type: psqldb
-    name: medicast-db
+  - name: medicast-db
     plan: free 
     postgresMajorVersion: 15
+
+services:
 
   # 2. Python Backend (FastAPI via Docker)
   - type: web
