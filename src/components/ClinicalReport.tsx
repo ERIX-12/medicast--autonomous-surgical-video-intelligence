@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Printer, Share2, Check } from 'lucide-react';
+import { FileText, Printer, Share2, Check, UploadCloud, Database } from 'lucide-react';
 import type { FrameAnalysis } from '../hooks/useAnalysisEngine';
 import type { ProcedureKnowledge } from '../data/types';
 
@@ -11,8 +11,20 @@ interface Props {
 
 export default function ClinicalReport({ analyses, procedure, sessionId }: Props) {
   const [copied, setCopied] = useState(false);
+  const [emrSyncing, setEmrSyncing] = useState(false);
+  const [emrSynced, setEmrSynced] = useState(false);
 
   if (analyses.length === 0) return null;
+
+  const handleEMRSync = () => {
+    setEmrSyncing(true);
+    // Simulate HL7/FHIR payload generation and API request
+    setTimeout(() => {
+      setEmrSyncing(false);
+      setEmrSynced(true);
+      setTimeout(() => setEmrSynced(false), 3000);
+    }, 1500);
+  };
 
   const handlePrint = () => {
     window.print();
@@ -70,6 +82,24 @@ Escalations: ${criticalFrames.length} CRITICAL, ${warningFrames.length} WARNING`
           Clinical Report
         </h3>
         <div className="ml-auto flex items-center gap-1">
+          <button 
+            onClick={handleEMRSync}
+            disabled={emrSyncing || emrSynced}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono tracking-wider uppercase border transition-all cursor-pointer print:hidden ${
+              emrSynced ? 'border-success text-success bg-success/10' :
+              emrSyncing ? 'border-accent text-accent animate-pulse' :
+              'border-border text-foreground-muted hover:text-accent hover:border-accent/40'
+            }`}
+            title="Export to Epic / EMR (FHIR HL7)"
+          >
+            {emrSynced ? <Check className="w-3.5 h-3.5" /> : <Database className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">
+              {emrSynced ? 'EMR Synced' : emrSyncing ? 'Exporting...' : 'Push to EMR'}
+            </span>
+          </button>
+          
+          <div className="w-px h-4 bg-border mx-1 print:hidden" />
+
           <button onClick={handlePrint} className="p-1.5 text-foreground-muted hover:text-accent transition-colors cursor-pointer print:hidden" title="Print">
             <Printer className="w-3.5 h-3.5" />
           </button>

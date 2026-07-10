@@ -18,6 +18,7 @@ export interface VideoPlayerHandle {
   captureFrame: () => HTMLCanvasElement | null;
   isEnded: () => boolean;
   getDuration: () => number;
+  setVolume: (volume: number) => void;
 }
 
 function isYouTubeUrl(url: string): boolean {
@@ -42,7 +43,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(
     const youtubeIframeRef = useRef<HTMLIFrameElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [isMuted, setIsMuted] = useState(true);
+    const [isMuted, setIsMuted] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [youtubeReady, setYoutubeReady] = useState(false);
@@ -92,6 +93,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(
         }
         return 0;
       },
+      setVolume: (volume: number) => {
+        if (videoRef.current) {
+          videoRef.current.volume = volume;
+        }
+        if (youtubeIframeRef.current && youtubeIframeRef.current.contentWindow) {
+          // Send postMessage to YouTube iframe to set volume (0 to 100)
+          youtubeIframeRef.current.contentWindow.postMessage(
+            JSON.stringify({ event: 'command', func: 'setVolume', args: [volume * 100] }),
+            '*'
+          );
+        }
+      }
     }));
 
     // Timer: if the YouTube iframe doesn't respond within 5 s, assume embed is blocked

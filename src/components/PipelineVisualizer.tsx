@@ -1,4 +1,4 @@
-import { Brain, Shield, Crosshair, GraduationCap, Scale, Video, ArrowRight, ArrowDown, Activity } from 'lucide-react';
+import { Brain, Shield, Crosshair, GraduationCap, Scale, Video, ArrowRight, ArrowDown, Activity, Loader2 } from 'lucide-react';
 import type { FrameAnalysis } from '../hooks/useAnalysisEngine';
 
 interface Props {
@@ -43,37 +43,105 @@ export default function PipelineVisualizer({ isAnalyzing, latestAnalysis }: Prop
           
           <div className="grid grid-cols-2 gap-3 mt-2">
             {/* Anatomy Agent */}
-            <div className={`p-2 border transition-all duration-500 ${isAnalyzing ? 'border-accent/50 bg-accent/5' : 'border-border/50'}`}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Crosshair className={`w-3 h-3 ${isAnalyzing ? 'text-accent' : 'text-foreground-muted'}`} />
-                <span className="text-[10px] font-bold text-foreground">Anatomy</span>
+            <div className={`p-2 border transition-all duration-500 relative overflow-hidden ${
+              isAnalyzing 
+                ? 'border-accent/50 bg-accent/5 shadow-[0_0_12px_rgba(20,184,166,0.12)]' 
+                : 'border-border/50'
+            }`}>
+              {isAnalyzing && (
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="w-full h-[2px] bg-accent/25 absolute left-0 animate-scan" />
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5">
+                  <Crosshair className={`w-3 h-3 ${isAnalyzing ? 'text-accent' : 'text-foreground-muted'}`} />
+                  <span className="text-[10px] font-bold text-foreground">Anatomy</span>
+                </div>
+                {isAnalyzing && (
+                  <div className="flex items-center gap-0.5">
+                    <Loader2 className="w-2.5 h-2.5 text-accent animate-spin" />
+                    <span className="text-[6px] font-mono text-accent animate-pulse-dot uppercase tracking-wider">LOOP</span>
+                  </div>
+                )}
               </div>
               <p className="text-[8px] text-foreground-muted leading-tight">Identifies structures & variants</p>
             </div>
 
             {/* Safety Agent */}
-            <div className={`p-2 border transition-all duration-500 delay-75 ${isAnalyzing ? 'border-warning/50 bg-warning/5' : 'border-border/50'}`}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Shield className={`w-3 h-3 ${isAnalyzing ? 'text-warning' : 'text-foreground-muted'}`} />
-                <span className="text-[10px] font-bold text-foreground">Safety</span>
+            <div className={`p-2 border transition-all duration-500 delay-75 relative overflow-hidden ${
+              isAnalyzing 
+                ? 'border-warning/50 bg-warning/5 shadow-[0_0_12px_rgba(245,158,11,0.12)]' 
+                : 'border-border/50'
+            }`}>
+              {isAnalyzing && (
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="w-full h-[2px] bg-warning/25 absolute left-0 animate-scan" />
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5">
+                  <Shield className={`w-3 h-3 ${isAnalyzing ? 'text-warning' : 'text-foreground-muted'}`} />
+                  <span className="text-[10px] font-bold text-foreground">Safety</span>
+                </div>
+                {isAnalyzing && (
+                  <div className="flex items-center gap-0.5">
+                    <Loader2 className="w-2.5 h-2.5 text-warning animate-spin" />
+                    <span className="text-[6px] font-mono text-warning animate-pulse-dot uppercase tracking-wider">LOOP</span>
+                  </div>
+                )}
               </div>
               <p className="text-[8px] text-foreground-muted leading-tight">Monitors risk & dissection planes</p>
             </div>
 
             {/* Phase Agent */}
-            <div className={`p-2 border transition-all duration-500 delay-150 ${isAnalyzing ? 'border-success/50 bg-success/5' : 'border-border/50'}`}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Activity className={`w-3 h-3 ${isAnalyzing ? 'text-success' : 'text-foreground-muted'}`} />
-                <span className="text-[10px] font-bold text-foreground">Phase</span>
+            <div className={`p-2 border transition-all duration-500 delay-150 relative overflow-hidden ${
+              isAnalyzing 
+                ? 'border-success/50 bg-success/5 shadow-[0_0_12px_rgba(34,197,94,0.12)]' 
+                : 'border-border/50'
+            }`}>
+              {isAnalyzing && (
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="w-full h-[2px] bg-success/25 absolute left-0 animate-scan" />
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5">
+                  <Activity className={`w-3 h-3 ${isAnalyzing ? 'text-success' : 'text-foreground-muted'}`} />
+                  <span className="text-[10px] font-bold text-foreground">Phase</span>
+                </div>
+                {isAnalyzing && (
+                  <div className="flex items-center gap-0.5">
+                    <Loader2 className="w-2.5 h-2.5 text-success animate-spin" />
+                    <span className="text-[6px] font-mono text-success animate-pulse-dot uppercase tracking-wider">LOOP</span>
+                  </div>
+                )}
               </div>
               <p className="text-[8px] text-foreground-muted leading-tight">Tracks surgical progression</p>
             </div>
 
             {/* Education Agent */}
-            <div className={`p-2 border transition-all duration-500 delay-200 ${isAnalyzing ? 'border-accent/50 bg-accent/5' : 'border-border/50'}`}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <GraduationCap className={`w-3 h-3 ${isAnalyzing ? 'text-accent' : 'text-foreground-muted'}`} />
-                <span className="text-[10px] font-bold text-foreground">Education</span>
+            <div className={`p-2 border transition-all duration-500 delay-200 relative overflow-hidden ${
+              isAnalyzing 
+                ? 'border-accent/50 bg-accent/5 shadow-[0_0_12px_rgba(20,184,166,0.12)]' 
+                : 'border-border/50'
+            }`}>
+              {isAnalyzing && (
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="w-full h-[2px] bg-accent/25 absolute left-0 animate-scan" />
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5">
+                  <GraduationCap className={`w-3 h-3 ${isAnalyzing ? 'text-accent' : 'text-foreground-muted'}`} />
+                  <span className="text-[10px] font-bold text-foreground">Education</span>
+                </div>
+                {isAnalyzing && (
+                  <div className="flex items-center gap-0.5">
+                    <Loader2 className="w-2.5 h-2.5 text-accent animate-spin" />
+                    <span className="text-[6px] font-mono text-accent animate-pulse-dot uppercase tracking-wider">LOOP</span>
+                  </div>
+                )}
               </div>
               <p className="text-[8px] text-foreground-muted leading-tight">Evaluates technique & handling</p>
             </div>

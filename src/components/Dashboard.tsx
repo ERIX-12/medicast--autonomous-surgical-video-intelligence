@@ -12,6 +12,7 @@ import TelemetryPanel from './TelemetryPanel';
 import TimelineChart from './TimelineChart';
 import BlackBox from './BlackBox';
 import ClinicalReport from './ClinicalReport';
+import DebriefChat from './DebriefChat';
 import VideoUploader from './VideoUploader';
 import AuthModal from './AuthModal';
 import SessionHistory from './SessionHistory';
@@ -62,13 +63,6 @@ export default function Dashboard() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [phase]);
-
-  // Scroll to content when analysis starts
-  useEffect(() => {
-    if (phase === 'running' && mainRef.current) {
-      mainRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
   }, [phase]);
 
   const formatTimer = (seconds: number) => {
@@ -174,6 +168,24 @@ export default function Dashboard() {
             if (preferredVoice) {
               utterance.voice = preferredVoice;
             }
+            
+            // Duck audio
+            utterance.onstart = () => {
+              if (videoPlayerRef.current) {
+                videoPlayerRef.current.setVolume(0.1);
+              }
+            };
+            utterance.onend = () => {
+              if (videoPlayerRef.current) {
+                videoPlayerRef.current.setVolume(1.0);
+              }
+            };
+            utterance.onerror = () => {
+              if (videoPlayerRef.current) {
+                videoPlayerRef.current.setVolume(1.0);
+              }
+            };
+
             window.speechSynthesis.speak(utterance);
           }
         }
@@ -192,11 +204,12 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background/50 text-foreground relative z-0">
+      <div className="ambient-bg" />
       {/* ================================================================
           HEADER
           ================================================================ */}
-      <header className="border-b border-border bg-surface/90 backdrop-blur-md sticky top-0 z-50">
+      <header className="glass-panel border-b border-border/50 sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 h-14 flex items-center gap-4">
           {/* Logo */}
           <div className="flex items-center gap-2.5 shrink-0">
@@ -557,7 +570,7 @@ export default function Dashboard() {
                 {allAnalyses.length > 0 && (
                   <div className="grid grid-cols-2 gap-3">
                     {allAnalyses[allAnalyses.length - 1].zones.map((zone, i) => (
-                      <ZonePanel key={zone.zoneId} zone={zone} index={i} />
+                      <ZonePanel key={zone.zoneId} zone={zone} index={i} isAnalyzing={isAnalyzing} />
                     ))}
                   </div>
                 )}
@@ -565,10 +578,13 @@ export default function Dashboard() {
                 <ArbiterVerdict verdict={latestVerdict} isAnalyzing={isAnalyzing} />
 
                 {phase === 'completed' && (
-                  <div className="grid md:grid-cols-2 gap-5">
-                    <BlackBox analyses={allAnalyses} procedure={procedure} sessionId={sessionId} />
-                    <ClinicalReport analyses={allAnalyses} procedure={procedure} sessionId={sessionId} />
-                  </div>
+                  <>
+                    <div className="grid md:grid-cols-2 gap-5">
+                      <BlackBox analyses={allAnalyses} procedure={procedure} sessionId={sessionId} />
+                      <ClinicalReport analyses={allAnalyses} procedure={procedure} sessionId={sessionId} />
+                    </div>
+                    <DebriefChat analyses={allAnalyses} sessionId={sessionId || ''} />
+                  </>
                 )}
               </div>
 

@@ -1,9 +1,10 @@
-import { Brain, Shield, Eye, GraduationCap } from 'lucide-react';
+import { Brain, Shield, Eye, GraduationCap, Loader2 } from 'lucide-react';
 import type { ZoneAnalysis } from '../hooks/useAnalysisEngine';
 
 interface Props {
   zone: ZoneAnalysis;
   index: number;
+  isAnalyzing?: boolean;
 }
 
 const zoneMeta: Record<string, { label: string; icon: typeof Brain }> = {
@@ -27,24 +28,38 @@ const severityBg: Record<string, string> = {
   critical: 'bg-critical/10 border-critical/20',
 };
 
-export default function ZonePanel({ zone, index }: Props) {
+export default function ZonePanel({ zone, index, isAnalyzing }: Props) {
   const meta = zoneMeta[zone.agentType] || zoneMeta.anatomy;
   const Icon = meta.icon;
 
   return (
     <div
-      className={`bg-surface border border-border transition-all duration-300
+      className={`bg-surface border border-border transition-all duration-300 relative overflow-hidden
         hover:border-border-active ${index === 0 ? 'col-span-2' : ''}`}
     >
+      {isAnalyzing && (
+        <div className="absolute inset-0 pointer-events-none z-10">
+          <div className="w-full h-[2px] bg-accent/15 absolute left-0 animate-scan" />
+        </div>
+      )}
+
       {/* Header */}
       <div className={`flex items-center gap-2 px-4 py-3 border-b ${severityBg[zone.severity]}`}>
         <Icon className={`w-4 h-4 ${severityStyles[zone.severity].split(' ')[1]}`} />
         <span className="text-xs font-semibold text-foreground tracking-wider uppercase flex-1">
           {meta.label}
         </span>
-        <span className={`text-[10px] font-mono font-semibold tracking-wider px-2 py-0.5 border ${severityBg[zone.severity]} ${severityStyles[zone.severity]}`}>
-          {zone.severity.toUpperCase()}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] font-mono font-semibold tracking-wider px-2 py-0.5 border ${severityBg[zone.severity]} ${severityStyles[zone.severity]}`}>
+            {zone.severity.toUpperCase()}
+          </span>
+          {isAnalyzing && (
+            <div className="flex items-center gap-1 bg-accent/10 border border-accent/20 px-1.5 py-0.5 text-accent">
+              <Loader2 className="w-2.5 h-2.5 animate-spin" />
+              <span className="text-[8px] font-mono font-bold animate-pulse-dot tracking-wider">LOOP</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Findings */}

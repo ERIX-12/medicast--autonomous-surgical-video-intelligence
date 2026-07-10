@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - INFERENCE_PROVIDER=fireworks
+      - INFERENCE_API_KEY=fw_QdWMoKVjY8xeicpioEtMSx
+      - CORS_ORIGINS=http://localhost:5173

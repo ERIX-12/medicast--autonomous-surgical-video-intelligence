@@ -21,12 +21,15 @@ import time
 import uuid
 
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 
+from .inference import InferenceEngine
 from . import auth as auth_module
 from . import database as db
 from . import inference as inf
 from . import telemetry as tel
 from . import websocket as ws
+from .report_generator import generate_docx_report, generate_pdf_report
 from .models import (
     FrameAnalysisRequest,
     FrameAnalysisResponse,
@@ -187,6 +190,43 @@ async def analyze_frame(request: FrameAnalysisRequest):
 
     return response
 
+
+# ─── Debrief Chat ────────────────────────────────────────────────────────────
+
+from pydantic import BaseModel
+
+class DebriefRequest(BaseModel):
+    sessionId: str
+    question: str
+    context: list[dict]
+
+@router.post("/debrief")
+async def debrief_chat_endpoint(request: DebriefRequest):
+    """Interactive chat with the AI Arbiter post-surgery."""
+    response = await engine.debrief_chat(request.question, request.context)
+    return {"reply": response}
+
+from fastapi.responses import StreamingResponse
+
+@router.post("/report/docx")
+async def download_docx_report(request: DebriefRequest):
+    """Generate and download a DOCX medical report."""
+    file_stream = generate_docx_report(request.context, request.sessionId)
+    return StreamingResponse(
+        file_stream, 
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename=MediCast_Report_{request.sessionId}.docx"}
+    )
+
+@router.post("/report/pdf")
+async def download_pdf_report(request: DebriefRequest):
+    """Generate and download a PDF medical report."""
+    file_stream = generate_pdf_report(request.context, request.sessionId)
+    return StreamingResponse(
+        file_stream, 
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=MediCast_Report_{request.sessionId}.pdf"}
+    )
 
 # ─── Frame Analysis (Mock) ───────────────────────────────────────────────────
 

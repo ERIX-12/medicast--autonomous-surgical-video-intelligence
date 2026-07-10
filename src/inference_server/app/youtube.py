@@ -27,8 +27,33 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
+import shutil
 
 logger = logging.getLogger("mediast.youtube")
+
+
+def _get_ffmpeg_exe() -> str:
+    """Resolve the ffmpeg executable path.
+
+    Priority:
+    1. imageio_ffmpeg bundled binary (pip install imageio-ffmpeg)
+    2. System PATH ffmpeg
+    """
+    # Try imageio_ffmpeg first (ships a bundled binary)
+    try:
+        import imageio_ffmpeg
+        path = imageio_ffmpeg.get_ffmpeg_exe()
+        if path and os.path.isfile(path):
+            return path
+    except ImportError:
+        pass
+
+    # Fall back to system PATH
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg
+
+    return "ffmpeg"  # Let the OS try to find it (will fail gracefully)
 
 # ─── Models ──────────────────────────────────────────────────────────────────
 
@@ -135,8 +160,9 @@ async def _extract_frames_ffmpeg(
     output_pattern = str(Path(output_dir) / "frame_%06d.jpg")
 
     # Build ffmpeg command
+    ffmpeg_exe = _get_ffmpeg_exe()
     cmd = [
-        "ffmpeg",
+        ffmpeg_exe,
         "-i", str(video_path),
         "-vf", f"fps={fps}",
         "-q:v", "5",  # JPEG quality (1=best, 31=worst)
@@ -196,14 +222,15 @@ async def _download_video(video_id: str) -> Optional[Path]:
     tmp_dir = tempfile.mkdtemp(prefix="mediast-video-")
     output_template = str(Path(tmp_dir) / "%(id)s.%(ext)s")
 
+    ffmpeg_exe = _get_ffmpeg_exe()
     cmd = [
         "yt-dlp",
-        "-f", "best[height<=720]",  # Limit to 720p for speed
+        "-f", "best[height<=720][ext=mp4]/best[height<=720]/best",
         "-o", output_template,
         "--no-playlist",
         "--no-warnings",
         "--no-check-certificates",
-        "--extract-audio",  # Don't extract audio, get video
+        "--ffmpeg-location", str(Path(ffmpeg_exe).parent),
         "--merge-output-format", "mp4",
         f"https://www.youtube.com/watch?v={video_id}",
     ]
@@ -291,17 +318,30 @@ async def _check_dependencies() -> dict[str, bool]:
     """Check which tools are available on the system."""
     deps = {"yt-dlp": False, "ffmpeg": False}
 
-    for tool in deps:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                tool, "--version",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await asyncio.wait_for(proc.communicate(), timeout=5)
-            deps[tool] = proc.returncode == 0
-        except (FileNotFoundError, asyncio.TimeoutError):
-            pass
+    # Check yt-dlp
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "yt-dlp", "--version",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await asyncio.wait_for(proc.communicate(), timeout=5)
+        deps["yt-dlp"] = proc.returncode == 0
+    except (FileNotFoundError, asyncio.TimeoutError):
+        pass
+
+    # Check ffmpeg (including imageio_ffmpeg bundled binary)
+    ffmpeg_exe = _get_ffmpeg_exe()
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            ffmpeg_exe, "-version",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await asyncio.wait_for(proc.communicate(), timeout=5)
+        deps["ffmpeg"] = proc.returncode == 0
+    except (FileNotFoundError, asyncio.TimeoutError):
+        pass
 
     return deps
 
