@@ -25,7 +25,8 @@ services:
         sync: false # You will be prompted to enter this in the Render Dashboard
 
   # 3. React Frontend (Static Site)
-  - type: static
+  - type: web
+    env: static
     name: medicast-frontend
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
