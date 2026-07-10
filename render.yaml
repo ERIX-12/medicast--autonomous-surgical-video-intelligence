@@ -32,7 +32,4 @@ services:
     staticPublishPath: ./dist
     envVars:
       - key: VITE_RENDER_BACKEND_HOST
-        fromService:
-          type: web
-          name: medicast-backend
-          property: host
+        value: medicast-backend.onrender.com
