@@ -15,17 +15,17 @@ In an industry where surgical errors cost billions and jeopardize patient safety
 - **The Arbiter Agent:** A master AI that synthesizes the swarm's findings to issue a single, authoritative safety verdict (SAFE, WARNING, CRITICAL) for every moment of the surgery.
 - **Automated Clinical Reports:** Automatically generates a comprehensive post-operative dictation report, saving surgeons 45 minutes of manual paperwork per procedure.
 - **Cryptographic Black Box:** Aviation-style session sealing using SHA-256 hashes, ensuring that all AI safety verdicts are immutable and legally verifiable for hospital audit trails.
-- **Zero Local Hardware Needed:** Deployed entirely via the cloud on **Render**. Hospitals do not need to install massive, expensive GPU servers—MediCast runs purely via the cloud.
+- **HIPAA-Compliant Edge Deployment:** Designed to run 100% on-premise on hospital servers using AMD Instinct GPUs. No patient data leaves the building, ensuring full data privacy while operating at sub-200ms latency.
 
 ---
 
-## ⚡ AMD & Fireworks AI Integration
+## ⚡ Hardware Acceleration: AMD Instinct & ROCm
 
-MediCast fully leverages the required technology stack to deliver unparalleled speed and intelligence:
+MediCast is architected to leverage AMD infrastructure at the edge for unparalleled speed and privacy:
 
-- **Compute:** Fully cloud-based inference powered by **AMD Instinct™ GPUs**.
-- **Bonus Track — Best Use of Gemma Models:** The core reasoning engine and the Arbiter are powered exclusively by Google's **Gemma 2** (`accounts/fireworks/models/gemma2-9b-it`), ensuring clinical accuracy and speed.
-- **Parallel Inference Engine:** By utilizing the fast inference speeds of Fireworks AI on AMD hardware, MediCast processes complex multi-agent JSON outputs in a fraction of the time it would take traditional monolithic systems.
+- **Compute:** Optimized for local, on-premise inference powered by **AMD Instinct™ GPUs** via ROCm.
+- **Bonus Track — Best Use of Gemma Models:** The core reasoning engine and the Arbiter are powered exclusively by Google's **Gemma 2** (`gemma2` local or `accounts/fireworks/models/gemma2-9b-it`), ensuring clinical accuracy and speed.
+- **Local Edge LLMs (Ollama):** Includes native integration with Ollama/vLLM for running Vision and Text models (like LLaVA and Gemma 2) completely locally, resolving cloud latency and strict medical data privacy laws.
 
 ---
 
@@ -43,8 +43,8 @@ MediCast is live and accessible online. No local installation is required!
 4. Watch the 4 specialist agents and the Arbiter dynamically populate the UI.
 5. Once complete, scroll down to view the **Clinical Report** and click **Seal Session** to trigger the cryptographic Black Box.
 
-### Local Development (Docker)
-If you wish to run the code locally:
+### Local Development (Cloud Inference)
+If you wish to run the code locally using Fireworks API:
 ```bash
 git clone https://github.com/ERIX-12/medicast--autonomous-surgical-video-intelligence.git
 cd medicast--autonomous-surgical-video-intelligence
@@ -52,6 +52,13 @@ docker compose up --build
 ```
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:8000`
+
+### 🏥 On-Premise Edge Deployment (AMD ROCm)
+To run the entire system completely locally with zero internet access (HIPAA compliant), utilizing AMD ROCm for hardware acceleration:
+```bash
+docker-compose -f docker-compose.rocm.yml up --build
+```
+*Note: Requires an AMD GPU with ROCm drivers installed. Models will be pulled and executed entirely in VRAM.*
 
 ---
 

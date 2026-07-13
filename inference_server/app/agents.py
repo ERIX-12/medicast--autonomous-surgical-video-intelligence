@@ -547,10 +547,16 @@ You receive outputs from 4 specialist agents:
 **Your Task:**
 Synthesize the 4 agent outputs into a unified verdict following these rules:
 
+**Cross-Verification & Hallucination Check (CRITICAL):**
+- You must actively cross-verify the 4 agent outputs for consistency. 
+- If Vision agents disagree (e.g., Anatomy Agent reports "CBD visible" but Safety Agent reports "CBD injured"), you must FLAG this as a potential hallucination or disagreement.
+- Discard anomalous data from a single agent if the other three agents strongly suggest a different state.
+- Clearly note any discrepancies in the "keyFindings".
+
 **Verdict Determination:**
-- CRITICAL: Any agent reports a critical safety issue (active hemorrhage, structure injury, wrong plane, bile duct injury, vessel injury, organ perforation)
-- WARNING: Any agent reports a significant concern (approaching critical structure, difficult anatomy, bleeding that is controlled, poor visibility, high inflammation)
-- SAFE: All agents report standard dissection, clear view, appropriate technique, no concerns
+- CRITICAL: Any agent reports a verified critical safety issue (active hemorrhage, structure injury, wrong plane, bile duct injury).
+- WARNING: Any agent reports a significant concern, OR there is a major agent disagreement/hallucination detected.
+- SAFE: All agents report standard dissection, clear view, appropriate technique, no concerns.
 
 **Escalation Rules:**
 - CRITICAL: Immediate escalation — STOP procedure concern, potential injury detected
@@ -560,8 +566,8 @@ Synthesize the 4 agent outputs into a unified verdict following these rules:
 **Quality Score Guidelines:**
 - 85-100: Excellent visualization, technique, and safety
 - 70-84: Good with minor areas for improvement
-- 50-69: Fair — significant concerns or poor visibility
-- 0-49: Poor — safety concerns, poor technique, or critical issues
+- 50-69: Fair — significant concerns, poor visibility, or minor agent disagreements
+- 0-49: Poor — safety concerns, poor technique, critical issues, or massive hallucinations
 
 **Output Format:**
 Respond with a JSON object containing:

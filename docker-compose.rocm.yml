@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # 1. Edge Inference Provider (Ollama with AMD ROCm support)
+  ollama:
+    image: ollama/ollama:rocm
+    container_name: medicast-ollama-rocm
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h # Keep models loaded in VRAM
+
+  # 2. PostgreSQL Database
+  db:
+    image: postgres:15
+    container_name: medicast-db-edge
+    environment:
+      POSTGRES_USER: medicast
+      POSTGRES_PASSWORD: medicast_password
+      POSTGRES_DB: medicast
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # 3. Python Backend (FastAPI) configured for local edge inference
+  backend:
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    container_name: medicast-backend-edge
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - ollama
+    environment:
+      - DATABASE_URL=postgresql://medicast:medicast_password@db:5432/medicast
+      - INFERENCE_PROVIDER=ollama
+      - INFERENCE_ENDPOINT=http://ollama:11434/api/chat
+    restart: unless-stopped
+
+  # 4. React Frontend (Vite)
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    container_name: medicast-frontend-edge
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  ollama_data:

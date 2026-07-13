@@ -266,7 +266,26 @@ class InferenceEngine:
         elif self.provider == "vllm":
             raise NotImplementedError("vLLM integration not yet implemented")
         elif self.provider == "ollama":
-            raise NotImplementedError("Ollama integration not yet implemented")
+            b64_image = base64.b64encode(frame).decode("utf-8")
+            payload = {
+                "model": "llava",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt + "\n\nRespond with a valid JSON object ONLY.",
+                        "images": [b64_image]
+                    }
+                ],
+                "format": "json",
+                "stream": False
+            }
+            ollama_endpoint = self.endpoint or "http://localhost:11434/api/chat"
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(ollama_endpoint, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                content = data["message"]["content"]
+                return self._extract_json_from_text(content)
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 
@@ -303,7 +322,28 @@ class InferenceEngine:
         elif self.provider == "vllm":
             raise NotImplementedError("vLLM text integration not yet implemented")
         elif self.provider == "ollama":
-            raise NotImplementedError("Ollama text integration not yet implemented")
+            payload = {
+                "model": "gemma2",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": prompt + "\n\nRespond with a valid JSON object ONLY.",
+                    },
+                    {
+                        "role": "user",
+                        "content": context,
+                    }
+                ],
+                "format": "json",
+                "stream": False
+            }
+            ollama_endpoint = self.endpoint or "http://localhost:11434/api/chat"
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(ollama_endpoint, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                content = data["message"]["content"]
+                return self._extract_json_from_text(content)
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 
