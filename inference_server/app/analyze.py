@@ -40,9 +40,9 @@ router = APIRouter(prefix="/api")
 
 # ─── Inference Engine ────────────────────────────────────────────────────────
 
-INFERENCE_PROVIDER = os.environ.get("INFERENCE_PROVIDER")
+INFERENCE_PROVIDER = os.environ.get("INFERENCE_PROVIDER", "fireworks" if os.environ.get("FIREWORKS_API_KEY") else None)
 INFERENCE_ENDPOINT = os.environ.get("INFERENCE_ENDPOINT")
-INFERENCE_API_KEY = os.environ.get("INFERENCE_API_KEY")
+INFERENCE_API_KEY = os.environ.get("INFERENCE_API_KEY") or os.environ.get("FIREWORKS_API_KEY")
 
 engine = inf.create_inference_engine(
     provider=INFERENCE_PROVIDER,
@@ -90,12 +90,12 @@ def _build_arbiter_verdict(arb: dict) -> ArbiterVerdict:
     )
 
 
-def _store_frame_analysis(session_id: str, frame_index: int, agent_results: list[dict], arbiter_result: dict):
+async def _store_frame_analysis(session_id: str, frame_index: int, agent_results: list[dict], arbiter_result: dict):
     """Persist analysis to DB and generate black-box hash."""
     analysis_id = str(uuid.uuid4())
     escalation_level = arbiter_result.get("escalationLevel", "NONE")
 
-    db.insert_frame_analysis(
+    await db.insert_frame_analysis(
         analysis_id=analysis_id,
         session_id=session_id,
         frame_index=frame_index,
@@ -113,7 +113,7 @@ def _store_frame_analysis(session_id: str, frame_index: int, agent_results: list
     }, sort_keys=True)
     bb_hash = hashlib.sha256(hash_input.encode()).hexdigest()
 
-    db.insert_black_box_entry(
+    await db.insert_black_box_entry(
         entry_id=str(uuid.uuid4()),
         session_id=session_id,
         frame_index=frame_index,
@@ -165,7 +165,7 @@ async def analyze_frame(request: FrameAnalysisRequest):
     total_time = int((time.monotonic() - start_time) * 1000)
 
     # Persist to database and black box
-    _store_frame_analysis(
+    await _store_frame_analysis(
         session_id=request.sessionId,
         frame_index=request.frameIndex,
         agent_results=agent_results,

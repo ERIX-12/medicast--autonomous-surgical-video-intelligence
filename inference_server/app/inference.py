@@ -10,10 +10,14 @@ The Arbiter runs SEQUENTIALLY after all vision agents complete.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import random
 import time
 from typing import Any, Optional
+import re
+
+import httpx
 
 from . import agents as agent_prompts
 
@@ -232,9 +236,13 @@ class InferenceEngine:
         endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
     ):
-        self.provider = provider  # "vllm" or "ollama" or None for mock
+        self.provider = provider  # "vllm", "ollama", "fireworks" or None for mock
         self.endpoint = endpoint
         self.api_key = api_key
+        
+        # Default endpoint for Fireworks if not provided
+        if self.provider == "fireworks" and not self.endpoint:
+            self.endpoint = "https://api.fireworks.ai/inference/v1/chat/completions"
 
     async def analyze_frame_parallel(
         self,
@@ -431,30 +439,103 @@ class InferenceEngine:
             "inferenceMs": elapsed,
         }
 
-    async def _call_llm_vision(self, prompt: str, frame: bytes) -> dict[str, Any]:
-        """Call a vision-language model (vLLM or Ollama).
+    def _extract_json_from_text(self, text: str) -> dict[str, Any]:
+        """Attempt to parse a JSON object from text output, handling markdown code blocks."""
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+        
+        match = re.search(r"```json\n(.*?)\n```", text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(1))
+            except json.JSONDecodeError:
+                pass
+                
+        match = re.search(r"```\n(.*?)\n```", text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(1))
+            except json.JSONDecodeError:
+                pass
+                
+        # Fallback empty dict
+        return {}
 
-        This is a placeholder for actual LLM integration.
-        In production, this would make HTTP requests to the vLLM/Ollama endpoint.
+    async def _call_llm_vision(self, prompt: str, frame: bytes) -> dict[str, Any]:
+        """Call a vision-language model (vLLM, Ollama, or Fireworks).
         """
-        if self.provider == "vllm":
-            # TODO: Implement vLLM API call
-            # POST {self.endpoint}/v1/chat/completions
-            # with image_url content type
+        if self.provider == "fireworks":
+            b64_image = base64.b64encode(frame).decode("utf-8")
+            payload = {
+                "model": "accounts/fireworks/models/firellava-13b",
+                "max_tokens": 1024,
+                "temperature": 0.2,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt + "\n\nRespond with a valid JSON object ONLY."},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{b64_image}"
+                                },
+                            },
+                        ],
+                    }
+                ],
+                "response_format": {"type": "json_object"}
+            }
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(self.endpoint, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"]
+                return self._extract_json_from_text(content)
+        elif self.provider == "vllm":
             raise NotImplementedError("vLLM integration not yet implemented")
         elif self.provider == "ollama":
-            # TODO: Implement Ollama API call
-            # POST {self.endpoint}/api/chat
             raise NotImplementedError("Ollama integration not yet implemented")
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 
     async def _call_llm_text(self, prompt: str, context: str) -> dict[str, Any]:
         """Call a text-only LLM (for the Arbiter).
-
-        This is a placeholder for actual LLM integration.
         """
-        if self.provider == "vllm":
+        if self.provider == "fireworks":
+            payload = {
+                "model": "accounts/fireworks/models/gemma2-9b-it",
+                "max_tokens": 1024,
+                "temperature": 0.2,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": prompt + "\n\nRespond with a valid JSON object ONLY.",
+                    },
+                    {
+                        "role": "user",
+                        "content": context,
+                    }
+                ],
+                "response_format": {"type": "json_object"}
+            }
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(self.endpoint, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"]
+                return self._extract_json_from_text(content)
+        elif self.provider == "vllm":
             raise NotImplementedError("vLLM text integration not yet implemented")
         elif self.provider == "ollama":
             raise NotImplementedError("Ollama text integration not yet implemented")
