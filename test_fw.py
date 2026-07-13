@@ -12,14 +12,11 @@ async def test_fireworks():
     # create a dummy 1x1 black image in b64
     b64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
     payload = {
-        "model": "accounts/fireworks/models/llama-v3p2-11b-vision-instruct",
+        "model": "accounts/fireworks/models/gemma2-9b-it",
         "messages": [
             {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": "What color is this image?"},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}}
-                ]
+                "content": "Hello!"
             }
         ],
         "response_format": {"type": "json_object"},

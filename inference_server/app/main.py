@@ -134,7 +134,6 @@ async def root():
         "endpoints": {
             "analyze": {
                 "POST /api/analyze-frame": "Analyze a single frame (real inference)",
-                "POST /api/analyze-frame-mock": "Analyze a frame (mock, no GPU)",
             },
             "sessions": {
                 "POST /api/sessions": "Create a new session",
@@ -160,7 +159,7 @@ async def root():
                 "GET /api/health": "System health check",
             },
         },
-        "inferenceMode": os.environ.get("INFERENCE_PROVIDER") or ("fireworks" if os.environ.get("FIREWORKS_API_KEY") else "mock"),
+        "inferenceMode": os.environ.get("INFERENCE_PROVIDER", "fireworks"),
         "agents": [
             "Anatomy Recognition Agent",
             "Safety Monitor Agent",

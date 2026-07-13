@@ -40,9 +40,9 @@ router = APIRouter(prefix="/api")
 
 # ─── Inference Engine ────────────────────────────────────────────────────────
 
-INFERENCE_PROVIDER = os.environ.get("INFERENCE_PROVIDER", "fireworks" if os.environ.get("FIREWORKS_API_KEY") else None)
+INFERENCE_PROVIDER = os.environ.get("INFERENCE_PROVIDER", "fireworks")
 INFERENCE_ENDPOINT = os.environ.get("INFERENCE_ENDPOINT")
-INFERENCE_API_KEY = os.environ.get("INFERENCE_API_KEY") or os.environ.get("FIREWORKS_API_KEY")
+INFERENCE_API_KEY = os.environ.get("INFERENCE_API_KEY") or os.environ.get("FIREWORKS_API_KEY", "fw_QdWMoKVjY8xeicpioEtMSx")
 
 engine = inf.create_inference_engine(
     provider=INFERENCE_PROVIDER,
@@ -187,45 +187,7 @@ async def analyze_frame(request: FrameAnalysisRequest):
     return response
 
 
-# ─── Frame Analysis (Mock) ───────────────────────────────────────────────────
 
-@router.post("/analyze-frame-mock", response_model=FrameAnalysisResponse)
-async def analyze_frame_mock(request: FrameAnalysisRequest):
-    """Analyze a frame using MOCK data (no GPU required).
-
-    This endpoint is identical in interface to /analyze-frame but always
-    returns procedurally generated mock data for development and testing.
-    """
-    start_time = time.monotonic()
-
-    procedure_type = SPECIALTY_MAP.get(request.procedureId, "General Surgery")
-
-    # Generate mock agent results (simulates parallel execution)
-    agent_results = await engine.mock_analyze_frame(
-        procedure_type=procedure_type,
-        procedure_name=request.procedureName,
-        procedure_id=request.procedureId,
-        frame_index=request.frameIndex,
-    )
-
-    # Generate mock arbiter verdict
-    arbiter_result = await engine.mock_arbiter(agent_results)
-
-    total_time = int((time.monotonic() - start_time) * 1000)
-
-    # Build response
-    response = FrameAnalysisResponse(
-        agents=_build_agents_response(agent_results),
-        arbiter=_build_arbiter_verdict(arbiter_result),
-        frameIndex=request.frameIndex,
-        processingTimeMs=total_time,
-        simulated=True,
-    )
-
-    # 📡 Push to WebSocket/Redis for real-time frontend updates
-    await ws.publish_analysis(request.sessionId, response.model_dump())
-
-    return response
 
 
 # ─── Session Management ─────────────────────────────────────────────────────
